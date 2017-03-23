@@ -1,11 +1,14 @@
 package libphonelabgo
 
 import (
+	phonelab "github.com/shaseley/phonelab-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
 )
+
+const testFile = "./test/test.log"
 
 func TestParseSFFpsPayload(t *testing.T) {
 	t.Parallel()
@@ -205,4 +208,73 @@ func TestParseSFInvalid(t *testing.T) {
 	log, err := parser.Parse(payload)
 	assert.Nil(err)
 	assert.Nil(log)
+}
+
+type sfLogCounterGen struct {
+	t *testing.T
+}
+
+func (g *sfLogCounterGen) GenerateProcessor(source *phonelab.PipelineSourceInstance) phonelab.Processor {
+	return phonelab.NewSimpleProcessor(source.Processor, &sfLogCounterHandler{
+		t:         g.t,
+		fpsCount:  0,
+		diffCount: 0,
+	})
+}
+
+type sfLogCounterHandler struct {
+	fpsCount  int
+	diffCount int
+	t         *testing.T
+}
+
+func (handler *sfLogCounterHandler) Handle(log interface{}) interface{} {
+	ll := log.(*phonelab.Logline)
+	switch ll.Payload.(type) {
+	case *SFFpsLog:
+		handler.fpsCount += 1
+	case *SFFrameDiffLog:
+		handler.diffCount += 1
+	}
+	return nil
+}
+
+func (handler *sfLogCounterHandler) Finish() {
+	assert.Equal(handler.t, 52, handler.fpsCount)
+	assert.Equal(handler.t, 37, handler.diffCount)
+}
+
+func TestParseEndToEnd(t *testing.T) {
+	t.Parallel()
+	assert := assert.New(t)
+	require := require.New(t)
+
+	confString := `
+source:
+  type: files
+  sources: ["./test/test.log"]
+processors:
+  - name: main
+    generator: counter
+    has_logstream: true
+    parsers: ["SurfaceFlinger"]
+sink_name: main`
+
+	env := phonelab.NewEnvironment()
+	env.Parsers["SurfaceFlinger"] = func() phonelab.Parser { return NewSurfaceFlingerParser() }
+	env.Processors["counter"] = &sfLogCounterGen{t}
+
+	conf, err := phonelab.RunnerConfFromString(confString)
+	require.Nil(err)
+	require.NotNil(conf)
+
+	runner, err := conf.ToRunner(env)
+	require.Nil(err)
+	require.NotNil(runner)
+
+	t.Log(runner.Source)
+
+	// Checks are done during the run
+	errs := runner.Run()
+	assert.Equal(0, len(errs))
 }
