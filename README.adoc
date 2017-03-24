@@ -1,0 +1,7 @@
+= `libphonelabgo`: A PhoneLab-Go! Extension Library
+
+An extenstion to the basic PhoneLab-Go! library, adding SurfaceFlinger parsing
+and a framediff stream.
+
+NOTE: This library is still under development
+
