@@ -214,7 +214,9 @@ type sfLogCounterGen struct {
 	t *testing.T
 }
 
-func (g *sfLogCounterGen) GenerateProcessor(source *phonelab.PipelineSourceInstance) phonelab.Processor {
+func (g *sfLogCounterGen) GenerateProcessor(source *phonelab.PipelineSourceInstance,
+	kwargs map[string]interface{}) phonelab.Processor {
+
 	return phonelab.NewSimpleProcessor(source.Processor, &sfLogCounterHandler{
 		t:         g.t,
 		fpsCount:  0,
@@ -258,7 +260,8 @@ processors:
     generator: counter
     has_logstream: true
     parsers: ["SurfaceFlinger"]
-sink_name: main`
+sink:
+  name: main`
 
 	env := phonelab.NewEnvironment()
 	env.Parsers["SurfaceFlinger"] = func() phonelab.Parser { return NewSurfaceFlingerParser() }
