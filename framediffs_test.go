@@ -14,7 +14,10 @@ type counterHandler struct {
 }
 
 func (h *counterHandler) Handle(log interface{}) interface{} {
-	h.count += 1
+	switch log.(type) {
+	case *FrameDiffSample:
+		h.count += 1
+	}
 	return nil
 }
 
@@ -62,6 +65,8 @@ processors:
 
   - name: main
     generator: counter
+# Setting the next line to true would still work for this test,
+# but it's not necessary -- we're just counting diffs.
     has_logstream: false
     inputs:
       - name: diffstream
@@ -101,11 +106,106 @@ func TestFrameDiffOffset(t *testing.T) {
 		offset   int64
 		expected float64
 	}{
-		{123645302254, 0, 123.645302254},
-		{123645302254, 70000000, 123.715302254},
+		{123645302254, 0, 123645302.254},
+		{123645302254, 70000000, 123715302.254},
 	}
 
 	for _, test := range tests {
-		assert.Equal(test.expected, adjustTimestampNsToS(test.ts, test.offset))
+		assert.Equal(test.expected, adjustTimestampMsToS(test.ts, test.offset))
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+type interlaceVerifyHandler struct {
+	interval     int64
+	prevTraceSec float64
+	prevMs       int64
+	t            *testing.T
+}
+
+func (h *interlaceVerifyHandler) Handle(log interface{}) interface{} {
+	switch t := log.(type) {
+	case *FrameDiffSample:
+		if h.prevMs > 0 {
+			assert.True(h.t, h.prevMs+h.interval >= t.Timestamp)
+			assert.True(h.t, h.prevTraceSec+float64(h.interval)*0.001 >= t.TraceTimeAdj)
+		}
+		h.prevMs = t.Timestamp
+		h.prevTraceSec = t.TraceTimeAdj
+	}
+	return nil
+}
+
+func (h *interlaceVerifyHandler) Finish() {}
+
+type interlaceVerifyGen struct {
+	t *testing.T
+}
+
+func (g *interlaceVerifyGen) GenerateProcessor(source *phonelab.PipelineSourceInstance,
+	kwargs map[string]interface{}) phonelab.Processor {
+
+	interlace := 0
+	if v, ok := kwargs["interlace"]; ok {
+		interlace = v.(int)
+	}
+
+	return phonelab.NewSimpleProcessor(source.Processor,
+		&interlaceVerifyHandler{
+			interval: int64(interlace),
+			t:        g.t,
+		})
+}
+
+func TestFrameDiffInterlaceZeros(t *testing.T) {
+	t.Parallel()
+	assert := assert.New(t)
+	require := require.New(t)
+
+	confString := `
+source:
+  type: files
+  sources: ["./test/test.log"]
+processors:
+  - name: diffstream
+    generator: diffs
+    has_logstream: true
+    parsers: ["SurfaceFlinger"]
+    filters:
+      - type: simple
+        filter: "SurfaceFlinger"
+
+  - name: main
+    generator: verifier
+    has_logstream: false
+    inputs:
+      - name: diffstream
+        args:
+          interlace: 40
+
+sink:
+  name: main
+  args:
+    interlace: 40
+`
+
+	env := phonelab.NewEnvironment()
+	env.Parsers["SurfaceFlinger"] = func() phonelab.Parser { return NewSurfaceFlingerParser() }
+	env.Processors["diffs"] = &FrameDiffEmitterGenerator{}
+	env.Processors["verifier"] = &interlaceVerifyGen{t}
+
+	conf, err := phonelab.RunnerConfFromString(confString)
+	require.Nil(err)
+	require.NotNil(conf)
+
+	runner, err := conf.ToRunner(env)
+	require.Nil(err)
+	require.NotNil(runner)
+
+	t.Log(runner.Source)
+
+	// Counts are checked by the handler
+	errs := runner.Run()
+	assert.Equal(0, len(errs))
 }
