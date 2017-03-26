@@ -124,8 +124,8 @@ func (emitter *FrameDiffEmitter) Process() <-chan interface{} {
 				case *SFFpsLog:
 					{
 						// Update current time offset
-						traceTsNanos := int64(ll.TraceTime * msPerSecF)
-						curOffset = traceTsNanos - t.SysTimestamp
+						traceTsNanos := int64(ll.TraceTime * 1000000000.0)
+						curOffset = (traceTsNanos - t.SysTimestamp) / 1000000
 					}
 				}
 			}

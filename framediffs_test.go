@@ -118,10 +118,9 @@ func TestFrameDiffOffset(t *testing.T) {
 ////////////////////////////////////////////////////////////////////////////////
 
 type interlaceVerifyHandler struct {
-	interval     int64
-	prevTraceSec float64
-	prevMs       int64
-	t            *testing.T
+	interval int64
+	prevMs   int64
+	t        *testing.T
 }
 
 func (h *interlaceVerifyHandler) Handle(log interface{}) interface{} {
@@ -129,10 +128,8 @@ func (h *interlaceVerifyHandler) Handle(log interface{}) interface{} {
 	case *FrameDiffSample:
 		if h.prevMs > 0 {
 			assert.True(h.t, h.prevMs+h.interval >= t.Timestamp)
-			assert.True(h.t, h.prevTraceSec+float64(h.interval)*0.001 >= t.TraceTimeAdj)
 		}
 		h.prevMs = t.Timestamp
-		h.prevTraceSec = t.TraceTimeAdj
 	}
 	return nil
 }
@@ -181,12 +178,11 @@ processors:
     has_logstream: false
     inputs:
       - name: diffstream
-        args:
-          interlace: 40
+        args: *args
 
 sink:
   name: main
-  args:
+  args: &args
     interlace: 40
 `
 
@@ -203,7 +199,7 @@ sink:
 	require.Nil(err)
 	require.NotNil(runner)
 
-	t.Log(runner.Source)
+	//	t.Log(runner.Source)
 
 	// Counts are checked by the handler
 	errs := runner.Run()
