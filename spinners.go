@@ -23,34 +23,52 @@ type SpinnerAlgoGenerator struct{}
 // All spinner algorithm parameters. Not all algorithms use the same parameters,
 // but we put them all in one struct to make things simpler.
 type SpinnerAlgoConf struct {
-	Name        string
-	Min         float64
-	Max         float64
-	IgnoreZeros bool
-	NumVotesIn  int
-	NumVotesOut int
+	Name        string  `json:"name" yaml:"name"`
+	Group       string  `json:"group" yaml:"group"`
+	Min         float64 `json:"min" yaml:"min"`
+	Max         float64 `json:"max" yaml:"max"`
+	IgnoreZeros bool    `json:"ignore_zeros" yaml:"ignore_zeros"`
+	NumVotesIn  int     `json:"num_votes_in" yaml:"num_votes_in"`
+	NumVotesOut int     `json:"num_votes_out" yaml:"num_votes_out"`
 }
 
 func NewSpinnerAlgoConf(kwargs map[string]interface{}) *SpinnerAlgoConf {
 	p := &SpinnerAlgoConf{}
 
 	if v, ok := kwargs["min"]; ok {
-		p.Min = v.(float64)
+		p.Min, ok = v.(float64)
+		if !ok {
+			// Maybe it was an int?
+			if tmp, ok := v.(int); ok {
+				p.Min = float64(tmp)
+			}
+		}
 	}
+
 	if v, ok := kwargs["max"]; ok {
-		p.Max = v.(float64)
+		p.Max, ok = v.(float64)
+		if !ok {
+			// Maybe it was an int?
+			if tmp, ok := v.(int); ok {
+				p.Max = float64(tmp)
+			}
+		}
 	}
+
 	if v, ok := kwargs["ignoreZeros"]; ok {
-		p.IgnoreZeros = v.(bool)
+		p.IgnoreZeros, _ = v.(bool)
 	}
 	if v, ok := kwargs["algo"]; ok {
-		p.Name = v.(string)
+		p.Name, _ = v.(string)
+	}
+	if v, ok := kwargs["group"]; ok {
+		p.Group, _ = v.(string)
 	}
 	if v, ok := kwargs["votesIn"]; ok {
-		p.NumVotesIn = v.(int)
+		p.NumVotesIn, _ = v.(int)
 	}
 	if v, ok := kwargs["votesOut"]; ok {
-		p.NumVotesOut = v.(int)
+		p.NumVotesOut, _ = v.(int)
 	}
 
 	return p
@@ -222,6 +240,7 @@ func (algo *VotingSpinnerAlgo) Handle(log interface{}) interface{} {
 	}
 
 	diff := sample.PctDiff
+
 	cur := (diff > algo.Conf.Min && diff < algo.Conf.Max)
 
 	if cur {
@@ -303,4 +322,12 @@ type SpinnerCollectorGenerator struct{}
 func (g *SpinnerCollectorGenerator) GenerateProcessor(source *phonelab.PipelineSourceInstance,
 	kwargs map[string]interface{}) phonelab.Processor {
 	return NewSpinnerCollectorProcessor(source, kwargs)
+}
+
+// Set up an enviroment suitable for spinner detection.
+func SetSpinnerDetectionEnv(env *phonelab.Environment) {
+	env.Parsers["SurfaceFlinger"] = func() phonelab.Parser { return NewSurfaceFlingerParser() }
+	env.Processors["framediffs"] = &FrameDiffEmitterGenerator{}
+	env.Processors["spinners"] = &SpinnerAlgoGenerator{}
+	env.Processors["spinner_collector"] = &SpinnerCollectorGenerator{}
 }

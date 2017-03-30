@@ -40,7 +40,7 @@ source:
 
 processors:
   - name: diffstream
-    generator: diffs
+    generator: framediffs
     has_logstream: true
     parsers:
       - &SF SurfaceFlinger
@@ -57,7 +57,7 @@ processors:
           interlaceZeros: true
 
   - name: main
-    generator: collector
+    generator: spinner_collector
     inputs:
       - name: detector
         args: *spinner_args
@@ -73,10 +73,7 @@ sink:
     ignoreZeros: true
 `
 	env := phonelab.NewEnvironment()
-	env.Parsers["SurfaceFlinger"] = func() phonelab.Parser { return NewSurfaceFlingerParser() }
-	env.Processors["diffs"] = &FrameDiffEmitterGenerator{}
-	env.Processors["spinners"] = &SpinnerAlgoGenerator{}
-	env.Processors["collector"] = &SpinnerCollectorGenerator{}
+	SetSpinnerDetectionEnv(env)
 
 	env.DataCollectors["main"] = func() phonelab.DataCollector {
 		return &SpinnerDataCollector{
@@ -112,6 +109,7 @@ func TestSpinnerAlgoConf(t *testing.T) {
 		"votesIn":     8,
 		"votesOut":    2,
 		"ignoreZeros": true,
+		"group":       "group_name",
 	}
 	conf := NewSpinnerAlgoConf(confIn)
 	require.NotNil(conf)
@@ -122,6 +120,74 @@ func TestSpinnerAlgoConf(t *testing.T) {
 	assert.Equal(8, conf.NumVotesIn)
 	assert.Equal(2, conf.NumVotesOut)
 	assert.Equal(true, conf.IgnoreZeros)
+	assert.Equal("group_name", conf.Group)
+}
+
+func TestSpinnerAlgoConfNils(t *testing.T) {
+	t.Parallel()
+
+	// This should not panic the system, but can if we don't handle nils
+	// properly.
+	defer func() {
+		if r := recover(); r != nil {
+			t.Log("The test panicked!")
+			t.FailNow()
+		}
+	}()
+
+	assert := assert.New(t)
+	require := require.New(t)
+
+	confIn := map[string]interface{}{
+		"min":         nil,
+		"max":         nil,
+		"algo":        nil,
+		"votesIn":     nil,
+		"votesOut":    nil,
+		"ignoreZeros": nil,
+		"group":       nil,
+	}
+
+	conf := NewSpinnerAlgoConf(confIn)
+	require.NotNil(conf)
+
+	assert.True(reflect.DeepEqual(&SpinnerAlgoConf{}, conf))
+}
+
+func TestSpinnerAlgoConfIntMinMax(t *testing.T) {
+	t.Parallel()
+
+	// This should not panic the system, but can if we don't handle nils
+	// properly.
+	defer func() {
+		if r := recover(); r != nil {
+			t.Log("The test panicked!")
+			t.FailNow()
+		}
+	}()
+
+	assert := assert.New(t)
+	require := require.New(t)
+
+	confIn := map[string]interface{}{
+		"min":         1,
+		"max":         4,
+		"algo":        nil,
+		"votesIn":     nil,
+		"votesOut":    nil,
+		"ignoreZeros": nil,
+		"group":       nil,
+	}
+
+	conf := NewSpinnerAlgoConf(confIn)
+	require.NotNil(conf)
+
+	expected := &SpinnerAlgoConf{
+		Min: 1.0,
+		Max: 4.0,
+	}
+
+	assert.True(reflect.DeepEqual(expected, conf))
 }
 
 func TestSpinnerYamlInheritence(t *testing.T) {
@@ -152,7 +218,7 @@ processors:
         args: {interlaceZeros: true}
 
   - name: main
-    generator: collector
+    generator: spinner_collector
     inputs:
       - name: detector
         args: *sargs
