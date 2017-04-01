@@ -94,7 +94,7 @@ func (emitter *FrameDiffEmitter) Process() <-chan interface{} {
 							// This adds dummy 0.00 diff entries to help downstream algorithms that expect
 							// all diffs to be in the stream.
 
-							for emitter.InterlaceZerosMs > 0 && lastTsMs > 0 && prevDiff != nil && newDiff.Timestamp-lastTsMs > emitter.InterlaceZerosMs {
+							for emitter.InterlaceZerosMs > 0 && lastTsMs > 0 && prevDiff != nil && newDiff.Timestamp-lastTsMs > 2*emitter.InterlaceZerosMs {
 								newTsMs := lastTsMs + emitter.InterlaceZerosMs
 								inserted := &FrameDiffSample{
 									SFFrameDiff: SFFrameDiff{

@@ -127,7 +127,7 @@ func (h *interlaceVerifyHandler) Handle(log interface{}) interface{} {
 	switch t := log.(type) {
 	case *FrameDiffSample:
 		if h.prevMs > 0 {
-			assert.True(h.t, h.prevMs+h.interval >= t.Timestamp)
+			assert.True(h.t, h.prevMs+2*h.interval >= t.Timestamp)
 		}
 		h.prevMs = t.Timestamp
 	}
