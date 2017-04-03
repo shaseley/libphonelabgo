@@ -5,3 +5,7 @@ and a framediff stream.
 
 NOTE: This library is still under development
 
+== TODO
+
+. Min stitching spinner size should be configurable
+. Add test for stitching

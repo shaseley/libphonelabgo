@@ -18,6 +18,12 @@ func (s *Spinner) MonotonicTimestamp() float64 {
 	return s.TraceTimeStart
 }
 
+func (s *Spinner) Append(other *Spinner) {
+	s.EndTimeMs = other.EndTimeMs
+	s.TraceTimeEnd = other.TraceTimeEnd
+	s.DurationMs = s.EndTimeMs - s.StartTimeMs
+}
+
 type SpinnerAlgoGenerator struct{}
 
 // All spinner algorithm parameters. Not all algorithms use the same parameters,
@@ -330,4 +336,72 @@ func SetSpinnerDetectionEnv(env *phonelab.Environment) {
 	env.Processors["framediffs"] = &FrameDiffEmitterGenerator{}
 	env.Processors["spinners"] = &SpinnerAlgoGenerator{}
 	env.Processors["spinner_collector"] = &SpinnerCollectorGenerator{}
+	env.Processors["spinner_stitcher"] = &SpinnerStitcherGen{}
+}
+
+type SpinnerStitcher struct {
+	StitchInterval int64
+	Source         phonelab.Processor
+}
+
+func (stitcher *SpinnerStitcher) Process() <-chan interface{} {
+
+	outChan := make(chan interface{})
+	inChan := stitcher.Source.Process()
+
+	go func() {
+		var curSpinner *Spinner = nil
+
+		for log := range inChan {
+			// We're expecting only spinners
+			s, ok := log.(*Spinner)
+			if ok {
+				if stitcher.StitchInterval <= 0 {
+					outChan <- s
+				} else if s.DurationMs <= 1000 {
+					if curSpinner != nil {
+						outChan <- curSpinner
+						curSpinner = nil
+					}
+					outChan <- s
+				} else if curSpinner == nil {
+					curSpinner = s
+				} else if s.StartTimeMs-curSpinner.EndTimeMs < stitcher.StitchInterval {
+					// Combine the spinners
+					curSpinner.Append(s)
+				} else {
+					// Send old, save off new
+					outChan <- curSpinner
+					curSpinner = s
+				}
+			}
+		}
+
+		// Send the final spinner, if there is one
+		if curSpinner != nil {
+			outChan <- curSpinner
+		}
+
+		// Done.
+		close(outChan)
+	}()
+
+	return outChan
+}
+
+type SpinnerStitcherGen struct{}
+
+func (g *SpinnerStitcherGen) GenerateProcessor(source *phonelab.PipelineSourceInstance,
+	kwargs map[string]interface{}) phonelab.Processor {
+
+	var interval int
+
+	if v, ok := kwargs["interval"]; ok {
+		interval, _ = v.(int)
+	}
+
+	return &SpinnerStitcher{
+		StitchInterval: int64(interval),
+		Source:         source.Processor,
+	}
 }
