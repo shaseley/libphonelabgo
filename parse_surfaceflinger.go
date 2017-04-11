@@ -35,10 +35,18 @@ type SFFrameDiffLog struct {
 }
 
 type SFFrameDiff struct {
-	Timestamp int64   `json:"ts"`
-	PctDiff   float64 `json:"diff"`
-	Mode      int     `json:"mode"`
-	HasColor  int     `json:"color"`
+	Timestamp   int64        `json:"ts"`
+	PctDiff     float64      `json:"diff"`
+	Mode        int          `json:"mode"`
+	HasColor    int          `json:"color"`
+	GridWH      int          `json:"wh"`
+	GridEntries []*GridEntry `json:"grid"`
+	Grid        []*float64   `json:"-"`
+}
+
+type GridEntry struct {
+	Position int     `json:"p"`
+	Value    float64 `json:"v"`
 }
 
 type SFFrameDiffsJsonParserProps struct{}

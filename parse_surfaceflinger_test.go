@@ -195,6 +195,52 @@ func TestParseSFFrameDiffsNewErr(t *testing.T) {
 	assert.NotNil(err)
 }
 
+func TestParseSFFrameDiffWithGrid(t *testing.T) {
+	t.Parallel()
+	assert := assert.New(t)
+	require := require.New(t)
+
+	payload := `{"token":9, "diffs":[{"ts":75496872, "diff":0.000000, "mode": 0, "color": 0, "wh": 8, "grid": []},{"ts":75496923, "diff":0.149197, "mode": 0, "color": 0, "wh": 8, "grid": [{"p":33, "v":0.004578},{"p":34, "v":0.049133}]}]}`
+
+	parser := NewSurfaceFlingerParser()
+	require.NotNil(parser)
+
+	log, err := parser.Parse(payload)
+	assert.Nil(err)
+	assert.NotNil(log)
+	diffLog, ok := log.(*SFFrameDiffLog)
+	require.True(ok)
+
+	expected := &SFFrameDiffLog{
+		Token: 9,
+		Diffs: []*SFFrameDiff{
+			&SFFrameDiff{
+				Timestamp:   75496872,
+				PctDiff:     0.0,
+				GridWH:      8,
+				GridEntries: []*GridEntry{},
+			},
+			&SFFrameDiff{
+				Timestamp: 75496923,
+				PctDiff:   0.149197,
+				GridWH:    8,
+				GridEntries: []*GridEntry{
+					&GridEntry{
+						Position: 33,
+						Value:    0.004578,
+					},
+					&GridEntry{
+						Position: 34,
+						Value:    0.049133,
+					},
+				},
+			},
+		},
+	}
+
+	require.True(reflect.DeepEqual(expected, diffLog))
+}
+
 func TestParseSFInvalid(t *testing.T) {
 	t.Parallel()
 	assert := assert.New(t)
