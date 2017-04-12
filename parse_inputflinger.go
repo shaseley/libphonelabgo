@@ -5,6 +5,7 @@ import (
 )
 
 type IFKeyEventLog struct {
+	Seq         int64  `json:"seq"`
 	Msg         string `json:"msg"`
 	Timestamp   int64  `json:"ts"`
 	DeviceId    int    `json:"dev"`
@@ -103,6 +104,7 @@ const (
 )
 
 type IFMotionEventLog struct {
+	Seq          int64            `json:"seq"`
 	Msg          string           `json:"msg"`
 	Timestamp    int64            `json:"ts"`
 	DeviceId     int              `json:"dev"`

@@ -12,7 +12,7 @@ func TestParseIFMotionEvent(t *testing.T) {
 	assert := assert.New(t)
 	require := require.New(t)
 
-	payload := `{"msg":"dispatch","ts":64159277303000,"dev":5,"src":4098,"pflags":1644167168,"action":0,"a_btn":0,"flags":0,"meta":0,"btn_state":0,"eflags":0,"x_p":1.000000,"y_p":1.000000,"dtime":64159277303000,"ptrs":[{"id":0,"tool":1,"x":836.000000,"y":2279.000000,"pr":0.337500,"sz":0.003922,"tch_mj":41.476997,"tch_mn":41.476997,"tl_mj":41.476997,"tl_mn":41.476997,"orient":0.000000}]}`
+	payload := `{"seq": 1234, "msg":"dispatch","ts":64159277303000,"dev":5,"src":4098,"pflags":1644167168,"action":0,"a_btn":0,"flags":0,"meta":0,"btn_state":0,"eflags":0,"x_p":1.000000,"y_p":1.000000,"dtime":64159277303000,"ptrs":[{"id":0,"tool":1,"x":836.000000,"y":2279.000000,"pr":0.337500,"sz":0.003922,"tch_mj":41.476997,"tch_mn":41.476997,"tl_mj":41.476997,"tl_mn":41.476997,"orient":0.000000}]}`
 
 	parser := NewIFMotionEventParser()
 	require.NotNil(parser)
@@ -24,6 +24,7 @@ func TestParseIFMotionEvent(t *testing.T) {
 	require.True(ok)
 
 	expected := &IFMotionEventLog{
+		Seq:          1234,
 		Msg:          "dispatch",
 		Timestamp:    64159277303000,
 		DeviceId:     5,
