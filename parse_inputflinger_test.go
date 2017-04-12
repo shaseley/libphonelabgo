@@ -91,3 +91,62 @@ func TestParseIFKeyEvent(t *testing.T) {
 
 	require.True(reflect.DeepEqual(expected, typedLog))
 }
+
+func TestActionMasked(t *testing.T) {
+	t.Parallel()
+	assert := assert.New(t)
+
+	tests := []struct {
+		action   int
+		expected int
+	}{
+		{ACTION_DOWN, ACTION_DOWN},
+		{ACTION_UP, ACTION_UP},
+		{ACTION_MOVE, ACTION_MOVE},
+		{ACTION_CANCEL, ACTION_CANCEL},
+		{ACTION_POINTER_1_UP, ACTION_POINTER_UP},
+		{ACTION_POINTER_2_UP, ACTION_POINTER_UP},
+		{ACTION_POINTER_3_UP, ACTION_POINTER_UP},
+		{ACTION_POINTER_1_DOWN, ACTION_POINTER_DOWN},
+		{ACTION_POINTER_2_DOWN, ACTION_POINTER_DOWN},
+		{ACTION_POINTER_3_DOWN, ACTION_POINTER_DOWN},
+	}
+
+	for _, test := range tests {
+		event := &IFMotionEventLog{
+			Action: test.action,
+		}
+		res := event.GetMaskedAction()
+		assert.Equal(test.expected, res)
+	}
+}
+
+func TestActionPointerIndex(t *testing.T) {
+	t.Parallel()
+	assert := assert.New(t)
+
+	tests := []struct {
+		action   int
+		expected int
+	}{
+		{ACTION_POINTER_DOWN, 0},
+		{ACTION_POINTER_UP, 0},
+		{ACTION_UP, 0},
+		{ACTION_MOVE, 0},
+		{ACTION_CANCEL, 0},
+		{ACTION_POINTER_1_UP, 0},
+		{ACTION_POINTER_2_UP, 1},
+		{ACTION_POINTER_3_UP, 2},
+		{ACTION_POINTER_1_DOWN, 0},
+		{ACTION_POINTER_2_DOWN, 1},
+		{ACTION_POINTER_3_DOWN, 2},
+	}
+
+	for _, test := range tests {
+		event := &IFMotionEventLog{
+			Action: test.action,
+		}
+		res := event.GetActionIndex()
+		assert.Equal(test.expected, res)
+	}
+}
