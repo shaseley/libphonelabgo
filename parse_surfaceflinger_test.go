@@ -327,3 +327,202 @@ sink:
 	errs := runner.Run()
 	assert.Equal(0, len(errs))
 }
+
+func TestScreenGridConvertPos(t *testing.T) {
+	t.Parallel()
+	assert := assert.New(t)
+
+	props := allScreenGrids[0]
+	tests := []struct {
+		origPos     int
+		expectedRow int
+		expectedCol int
+	}{
+		// Bottom row
+		{0, 7, 0},
+		{1, 7, 1},
+		{2, 7, 2},
+		{3, 7, 3},
+		{4, 7, 4},
+		{5, -1, -1},
+		{6, -1, -1},
+		{7, -1, -1},
+
+		{8, 6, 0},
+
+		// Middle
+		{24, 4, 0},
+		{26, 4, 2},
+		{34, 3, 2},
+
+		// Top row
+		{56, 0, 0},
+		{57, 0, 1},
+		{58, 0, 2},
+		{59, 0, 3},
+		{60, 0, 4},
+		{61, -1, -1},
+	}
+
+	for _, test := range tests {
+		r, c := props.entryPosToGridPos(test.origPos)
+		t.Log(r, c)
+		assert.Equal(r, test.expectedRow)
+		assert.Equal(c, test.expectedCol)
+	}
+}
+
+func TestInitScreenGrid(t *testing.T) {
+	t.Parallel()
+	assert := assert.New(t)
+
+	diff := &SFFrameDiff{
+		GridEntries: []*GridEntry{
+			&GridEntry{
+				Position: 0,
+				Value:    1.0,
+			},
+			&GridEntry{
+				Position: 18,
+				Value:    0.5,
+			},
+			&GridEntry{
+				Position: 43,
+				Value:    0.25,
+			},
+		},
+	}
+
+	diff.initScreenGrid(allScreenGrids[0])
+
+	assert.Equal(1.0, diff.Grid.grid[7][0])
+	assert.Equal(0.5, diff.Grid.grid[5][2])
+	assert.Equal(0.25, diff.Grid.grid[2][3])
+}
+
+func TestGridPosFromXY(t *testing.T) {
+	t.Parallel()
+	assert := assert.New(t)
+
+	tests := []struct {
+		x float64
+		y float64
+
+		col int
+		row int
+	}{
+		{0.0, 0.0, 0, 0},
+		{100.0, 400.0, 0, 1},
+		{1000.0, 2000.0, 3, 6},
+		{1300.0, 200.0, 4, 0},
+		{1439.0, 2559.0, 4, 7},
+
+		// Out of bounds
+		{2560.0, 1440.0, -1, -1},
+	}
+
+	props := allScreenGrids[0]
+
+	for _, test := range tests {
+		t.Log(test.x, test.y)
+		r, c := props.gridPosFromXY(test.x, test.y)
+		assert.Equal(test.row, r)
+		assert.Equal(test.col, c)
+	}
+}
+
+func TestSFLocalDiffs(t *testing.T) {
+	t.Parallel()
+	assert := assert.New(t)
+
+	// Bottom right corner, full diff with 4-conn, not quite with 8.
+	diff := &SFFrameDiff{
+		GridEntries: []*GridEntry{
+			&GridEntry{
+				Position: 3,
+				Value:    100.0,
+			},
+			&GridEntry{
+				Position: 4,
+				Value:    50.0, // Edge: (x 2)
+			},
+			&GridEntry{
+				Position: 12,
+				Value:    50.0, // Edge: (x 2)
+			},
+		},
+	}
+
+	diff.initScreenGrid(allScreenGrids[0])
+
+	pctDiff, err := diff.LocalDiff(FourConnected, 1400.0, 2500.0)
+	assert.Equal(100.0, pctDiff)
+	assert.Nil(err)
+
+	pctDiff, err = diff.LocalDiff(EightConnected, 1400.0, 2500.0)
+	assert.Equal(300.0/4.0, pctDiff)
+	assert.Nil(err)
+
+	// Middle of the screen, 4-conn and 8-conn will be different
+	diff = &SFFrameDiff{
+		GridEntries: []*GridEntry{
+			&GridEntry{
+				Position: 25,
+				Value:    30.1,
+			},
+			&GridEntry{
+				Position: 26,
+				Value:    20.6,
+			},
+			&GridEntry{
+				Position: 27,
+				Value:    100.0,
+			},
+			&GridEntry{
+				Position: 33,
+				Value:    50.0,
+			},
+			&GridEntry{
+				Position: 34,
+				Value:    50.0,
+			},
+			&GridEntry{
+				Position: 35,
+				Value:    65.0,
+			},
+			&GridEntry{
+				Position: 41,
+				Value:    60.0,
+			},
+			&GridEntry{
+				Position: 42,
+				Value:    70.0,
+			},
+			&GridEntry{
+				Position: 43,
+				Value:    80.0,
+			},
+		},
+	}
+
+	diff.initScreenGrid(allScreenGrids[0])
+
+	var sum float64 = 0.0
+
+	sum = 20.6 + 50.0 + 50.0 + 65.0 + 70.0
+
+	pctDiff, err = diff.LocalDiff(FourConnected, 700.0, 1000.0)
+	assert.Equal(float64(sum/5.0), pctDiff)
+	assert.Nil(err)
+
+	sum = 0.0
+
+	for _, ge := range diff.GridEntries {
+		sum += ge.Value
+	}
+
+	pctDiff, err = diff.LocalDiff(EightConnected, 700.0, 1000.0)
+	assert.Equal(sum/9.0, pctDiff)
+	assert.Nil(err)
+
+}

@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+const (
+	nexus6ScreenW = 1440
+	nexus6ScreenH = 2560
+)
+
 // Example:
 // 3a45bd43-82d2-4650-8571-039f48c0fdca 2016-12-02 03:03:28.15999782 453831 [184538.859034]   291   291 I SurfaceFlinger: {"fps":37.8, "tot_frames":84729, "prev_frames":84691, "cur_time": 184538788137586, "prev_time": 184537784018732}
 type SFFpsLog struct {
@@ -41,12 +46,163 @@ type SFFrameDiff struct {
 	HasColor    int          `json:"color"`
 	GridWH      int          `json:"wh"`
 	GridEntries []*GridEntry `json:"grid"`
-	Grid        []*float64   `json:"-"`
+	Grid        *ScreenGrid  `json:"-"`
 }
 
 type GridEntry struct {
 	Position int     `json:"p"`
 	Value    float64 `json:"v"`
+}
+
+type ScreenGrid struct {
+	grid  [][]float64
+	props *screenGridProps
+}
+
+type screenGridProps struct {
+	rows        int
+	cols        int
+	gridWH      int
+	screenW     int
+	screenH     int
+	edgeMultRow float64
+	edgeMultCol float64
+	pixelsPerWH float64
+}
+
+var allScreenGrids []*screenGridProps
+
+func init() {
+	allScreenGrids = []*screenGridProps{
+		&screenGridProps{
+			screenW:     1440,
+			screenH:     2560,
+			gridWH:      8,
+			rows:        8,
+			cols:        5,
+			edgeMultRow: 1.0,
+			edgeMultCol: 2.0,
+			pixelsPerWH: 2560 / 8,
+		},
+	}
+}
+
+// Returns -1 if out of expected bounds
+func (props *screenGridProps) entryPosToGridPos(pos int) (row, col int) {
+	row = pos / props.gridWH
+	col = pos - (row * props.gridWH)
+
+	if row >= props.rows || col >= props.cols {
+		row, col = -1, -1
+		return
+	}
+
+	// SF grid starts in lower left, but input coordinates start in upper left,
+	// so we'll mirror the grid height pos.
+	row = (props.gridWH - 1) - row
+
+	return row, col
+}
+
+func (props *screenGridProps) gridPosFromXY(x, y float64) (row, col int) {
+
+	row = int(y / props.pixelsPerWH)
+	col = int(x / props.pixelsPerWH)
+
+	if col < 0 || col >= props.cols ||
+		row < 0 || row >= props.rows {
+		row, col = -1, -1
+	}
+
+	return
+}
+
+func (diff *SFFrameDiff) initScreenGrid(props *screenGridProps) {
+
+	diff.Grid = &ScreenGrid{
+		props: props,
+	}
+
+	grid := make([][]float64, props.rows, props.rows)
+
+	for i := 0; i < props.rows; i += 1 {
+		grid[i] = make([]float64, props.cols, props.cols)
+	}
+
+	// Old format logs didn't have gridded diffs
+	if props.rows == 1 && props.cols == 1 {
+		grid[0][0] = diff.PctDiff
+		return
+	}
+
+	for _, entry := range diff.GridEntries {
+		if row, col := props.entryPosToGridPos(entry.Position); row < 0 || col < 0 {
+			panic("New grid position < 0!")
+		} else {
+			grid[row][col] = entry.Value
+		}
+	}
+
+	diff.Grid.grid = grid
+}
+
+type PixelConnectivity int
+
+const (
+	FourConnected  PixelConnectivity = 4
+	EightConnected                   = 8
+)
+
+type position struct {
+	row int
+	col int
+}
+
+func (diff *SFFrameDiff) LocalDiff(connectivity PixelConnectivity, x, y float64) (float64, error) {
+	if connectivity != FourConnected && connectivity != EightConnected {
+		return 0.0, fmt.Errorf("Invalid connectivity '%v', expected 4 or 8", connectivity)
+	}
+
+	props := diff.Grid.props
+
+	row, col := props.gridPosFromXY(x, y)
+	if row < 0 || col < 0 {
+		return 0.0, fmt.Errorf("Invalid positions: x=%v, y=%v is out of bounds", x, y)
+	}
+
+	positions := make([]*position, 0, int(connectivity)+1)
+
+	positions = append(positions, &position{row, col})
+	positions = append(positions, &position{row - 1, col})
+	positions = append(positions, &position{row + 1, col})
+	positions = append(positions, &position{row, col - 1})
+	positions = append(positions, &position{row, col + 1})
+
+	if connectivity == EightConnected {
+		positions = append(positions, &position{row - 1, col - 1})
+		positions = append(positions, &position{row - 1, col + 1})
+		positions = append(positions, &position{row + 1, col + 1})
+		positions = append(positions, &position{row + 1, col - 1})
+	}
+
+	sum := float64(0)
+	count := 0
+
+	for _, p := range positions {
+		if p.row < props.rows && p.col < props.cols {
+			pctDiff := diff.Grid.grid[p.row][p.col]
+			if p.row == props.rows-1 {
+				pctDiff *= props.edgeMultRow
+			}
+			if p.col == props.cols-1 {
+				pctDiff *= props.edgeMultCol
+			}
+			sum += pctDiff
+			count += 1
+		}
+	}
+
+	return sum / float64(count), nil
 }
 
 type SFFrameDiffsJsonParserProps struct{}
