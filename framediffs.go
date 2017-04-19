@@ -25,6 +25,11 @@ func (g *FrameDiffEmitterGenerator) GenerateProcessor(source *phonelab.PipelineS
 	}
 }
 
+// If this is set, frame diffs and input processors will use the system time
+// instead of possibly adjusted tracetime.
+// TODO: Find a better solution.
+var ConfigFrameDiffTimestampSys = true
+
 type FrameDiffSample struct {
 	SFFrameDiff
 	Inserted     bool    `json:"inserted"`
@@ -32,23 +37,17 @@ type FrameDiffSample struct {
 }
 
 func (sample *FrameDiffSample) MonotonicTimestamp() float64 {
-	return sample.TraceTimeAdj
+	if ConfigFrameDiffTimestampSys {
+		return float64(sample.Timestamp) / float64(1000.0)
+	} else {
+		return sample.TraceTimeAdj
+	}
 }
 
 // State tracker/unpacker
 type FrameDiffEmitter struct {
 	Source           phonelab.Processor
 	InterlaceZerosMs int64
-}
-
-const msPerSec = int64(1000)
-const msPerSecF = float64(1000.0)
-
-func adjustTimestampMsToS(ts int64, offset int64) float64 {
-	ts += offset
-	secs := ts / msPerSec
-	ms := ts - (secs * msPerSec)
-	return float64(secs) + (float64(ms) / msPerSecF)
 }
 
 func (emitter *FrameDiffEmitter) Process() <-chan interface{} {
@@ -60,10 +59,8 @@ func (emitter *FrameDiffEmitter) Process() <-chan interface{} {
 
 		// Clock skew between different monotonic clocks.
 		// Add this to diff timestamps to get trace timestamp.
-		curOffset := int64(0)
+		curOffsetMs := int64(0)
 		prevToken := int64(-1)
-
-		// TODO: Inerlace zeros
 		lastTsMs := int64(0)
 
 		var prevDiff *SFFrameDiff
@@ -85,7 +82,7 @@ func (emitter *FrameDiffEmitter) Process() <-chan interface{} {
 
 							newDiff := &FrameDiffSample{
 								SFFrameDiff:  *diff,
-								TraceTimeAdj: adjustTimestampMsToS(diff.Timestamp, curOffset),
+								TraceTimeAdj: adjustTimestampMsToS(diff.Timestamp, curOffsetMs),
 								Inserted:     false,
 							}
 
@@ -103,7 +100,7 @@ func (emitter *FrameDiffEmitter) Process() <-chan interface{} {
 										HasColor:  prevDiff.HasColor,
 										Mode:      prevDiff.Mode,
 									},
-									TraceTimeAdj: adjustTimestampMsToS(newTsMs, curOffset),
+									TraceTimeAdj: adjustTimestampMsToS(newTsMs, curOffsetMs),
 									Inserted:     true,
 								}
 								lastTsMs = newTsMs
@@ -114,18 +111,17 @@ func (emitter *FrameDiffEmitter) Process() <-chan interface{} {
 
 							outChan <- &FrameDiffSample{
 								SFFrameDiff:  *diff,
-								TraceTimeAdj: adjustTimestampMsToS(diff.Timestamp, curOffset),
+								TraceTimeAdj: adjustTimestampMsToS(diff.Timestamp, curOffsetMs),
 								Inserted:     false,
 							}
 
 							prevDiff = diff
 						}
 					}
-				case *SFFpsLog:
+				case *TimeSyncMsg:
 					{
 						// Update current time offset
-						traceTsNanos := int64(ll.TraceTime * 1000000000.0)
-						curOffset = (traceTsNanos - t.SysTimestamp) / 1000000
+						curOffsetMs = t.OffsetNs / nsPerMs
 					}
 				}
 			}

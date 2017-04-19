@@ -97,24 +97,6 @@ sink:
 	assert.Equal(0, len(errs))
 }
 
-func TestFrameDiffOffset(t *testing.T) {
-	t.Parallel()
-	assert := assert.New(t)
-
-	tests := []struct {
-		ts       int64
-		offset   int64
-		expected float64
-	}{
-		{123645302254, 0, 123645302.254},
-		{123645302254, 70000000, 123715302.254},
-	}
-
-	for _, test := range tests {
-		assert.Equal(test.expected, adjustTimestampMsToS(test.ts, test.offset))
-	}
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 type interlaceVerifyHandler struct {

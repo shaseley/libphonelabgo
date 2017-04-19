@@ -16,7 +16,11 @@ type TouchScreenEvent struct {
 }
 
 func (event *TouchScreenEvent) MonotonicTimestamp() float64 {
-	return event.TraceTime
+	if ConfigFrameDiffTimestampSys {
+		return float64(event.Timestamp) / nsPerSecF
+	} else {
+		return event.TraceTime
+	}
 }
 
 // To start with, we only detect scrolls and taps. Further, we don't make any
