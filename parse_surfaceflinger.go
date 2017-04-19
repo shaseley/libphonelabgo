@@ -189,7 +189,7 @@ func (diff *SFFrameDiff) LocalDiff(connectivity PixelConnectivity, x, y float64)
 	count := 0
 
 	for _, p := range positions {
-		if p.row < props.rows && p.col < props.cols {
+		if p.row >= 0 && p.col >= 0 && p.row < props.rows && p.col < props.cols {
 			pctDiff := diff.Grid.grid[p.row][p.col]
 			if p.row == props.rows-1 {
 				pctDiff *= props.edgeMultRow
