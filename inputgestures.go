@@ -16,7 +16,7 @@ type TouchScreenEvent struct {
 }
 
 func (event *TouchScreenEvent) MonotonicTimestamp() float64 {
-	if ConfigFrameDiffTimestampSys {
+	if GlobalConf.UseSysTime {
 		return float64(event.Timestamp) / nsPerSecF
 	} else {
 		return event.TraceTime

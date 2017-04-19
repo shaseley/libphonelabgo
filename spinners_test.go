@@ -73,7 +73,8 @@ sink:
     ignoreZeros: true
 `
 	env := phonelab.NewEnvironment()
-	SetSpinnerDetectionEnv(env)
+	AddParsers(env)
+	AddProcessors(env)
 
 	env.DataCollectors["main"] = func() phonelab.DataCollector {
 		return &SpinnerDataCollector{

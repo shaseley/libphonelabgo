@@ -73,6 +73,7 @@ source:
 
 processors:
   - name: input
+    generator: input_gestures
     has_logstream: true
     parsers:
       - InputDispatcher-MotionEvent
@@ -94,9 +95,9 @@ sink:
 	require := require.New(t)
 
 	env := phonelab.NewEnvironment()
-	RegisterInputFlingerParsers(env)
+	AddParsers(env)
+	AddProcessors(env)
 
-	env.Processors["input"] = &InputProcessorGenerator{}
 	env.Processors["tester"] = &inputTesterGenerator{
 		skipScrolls:      skipScrolls,
 		skipKeys:         skipKeys,

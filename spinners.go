@@ -330,15 +330,6 @@ func (g *SpinnerCollectorGenerator) GenerateProcessor(source *phonelab.PipelineS
 	return NewSpinnerCollectorProcessor(source, kwargs)
 }
 
-// Set up an enviroment suitable for spinner detection.
-func SetSpinnerDetectionEnv(env *phonelab.Environment) {
-	env.Parsers["SurfaceFlinger"] = func() phonelab.Parser { return NewSurfaceFlingerParser() }
-	env.Processors["framediffs"] = &FrameDiffEmitterGenerator{}
-	env.Processors["spinners"] = &SpinnerAlgoGenerator{}
-	env.Processors["spinner_collector"] = &SpinnerCollectorGenerator{}
-	env.Processors["spinner_stitcher"] = &SpinnerStitcherGen{}
-}
-
 type SpinnerStitcher struct {
 	StitchInterval int64
 	Source         phonelab.Processor

@@ -149,12 +149,3 @@ func (p *IFKeyEventParserProps) New() interface{} {
 func NewIFKeyEventParser() phonelab.Parser {
 	return phonelab.NewJSONParser(&IFKeyEventParserProps{})
 }
-
-func RegisterInputFlingerParsers(env *phonelab.Environment) {
-	env.Parsers["InputDispatcher-MotionEvent"] = func() phonelab.Parser {
-		return NewIFMotionEventParser()
-	}
-	env.Parsers["InputDispatcher-KeyEvent"] = func() phonelab.Parser {
-		return NewIFKeyEventParser()
-	}
-}

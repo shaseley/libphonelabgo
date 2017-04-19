@@ -72,3 +72,14 @@ func (p *TimeSyncPreprocessor) Process() <-chan interface{} {
 
 	return outChan
 }
+
+type TimeSyncPreprocessorGenerator struct{}
+
+func (g *TimeSyncPreprocessorGenerator) GenerateProcessor(source *phonelab.PipelineSourceInstance,
+	kwargs map[string]interface{}) phonelab.Processor {
+
+	return &TimeSyncPreprocessor{
+		Source: source.Processor,
+	}
+
+}

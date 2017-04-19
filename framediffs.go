@@ -25,11 +25,6 @@ func (g *FrameDiffEmitterGenerator) GenerateProcessor(source *phonelab.PipelineS
 	}
 }
 
-// If this is set, frame diffs and input processors will use the system time
-// instead of possibly adjusted tracetime.
-// TODO: Find a better solution.
-var ConfigFrameDiffTimestampSys = true
-
 type FrameDiffSample struct {
 	SFFrameDiff
 	Inserted     bool    `json:"inserted"`
@@ -37,7 +32,7 @@ type FrameDiffSample struct {
 }
 
 func (sample *FrameDiffSample) MonotonicTimestamp() float64 {
-	if ConfigFrameDiffTimestampSys {
+	if GlobalConf.UseSysTime {
 		return float64(sample.Timestamp) / float64(1000.0)
 	} else {
 		return sample.TraceTimeAdj
