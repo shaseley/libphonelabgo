@@ -8,20 +8,66 @@ import (
 // InputDiffProcessor is a Processor that combines input events with nearby
 // diff samples.
 type InputDiffProcessor struct {
-	DiffDurationMs int64
-	Source         phonelab.Processor
+	Args   *InputDiffProcessorArgs
+	Source phonelab.Processor
+}
+
+type LocalDiffSample struct {
+	Diff float64 `json:"diff"`
+	Size int     `json:"size"`
 }
 
 type InputDiffSample struct {
-	Timestamp  int64
-	LocalDiff  float64
-	GlobalDiff float64
+	Timestamp  int64            `json:"timestamp"`
+	LocalDiff1 *LocalDiffSample `json:"local_diff1"`
+	LocalDiff4 *LocalDiffSample `json:"local_diff4"`
+	LocalDiff8 *LocalDiffSample `json:"local_diff8"`
+	GlobalDiff float64          `json:"global_diff"`
+	NumChanges int              `json:"num_changes"`
 }
 
 type InputDiffEvent struct {
-	EventDetail *TouchScreenEvent
-	Eclipsed    bool
-	Diffs       []*InputDiffSample
+	EventDetail []*TouchScreenEvent `json:"event_detail"`
+	Eclipsed    bool                `json:"eclipsed"`
+	Diffs       []*InputDiffSample  `json:"diffs"`
+	complete    bool
+}
+
+const DefaultDiffDuration = 5000
+
+type InputDiffProcessorArgs struct {
+	DoTaps         bool
+	DoKeys         bool
+	DoScrolls      bool
+	DiffDurationMs int64
+}
+
+func NewInputDiffProcessorArgs(kwargs map[string]interface{}) *InputDiffProcessorArgs {
+	args := &InputDiffProcessorArgs{
+		DiffDurationMs: DefaultDiffDuration,
+	}
+
+	if v, ok := kwargs["do_taps"]; ok {
+		args.DoTaps, _ = v.(bool)
+	}
+
+	if v, ok := kwargs["do_scrolls"]; ok {
+		args.DoScrolls, _ = v.(bool)
+	}
+
+	if v, ok := kwargs["do_keys"]; ok {
+		args.DoKeys, _ = v.(bool)
+	}
+
+	if v, ok := kwargs["diff_duration_ms"]; ok {
+		var diffDuration int
+		if diffDuration, ok = v.(int); !ok {
+			fmt.Printf("Warning: wrong type for 'diff_duration_ms' (*T)\n", diffDuration)
+		}
+		args.DiffDurationMs = int64(diffDuration)
+	}
+
+	return args
 }
 
 func (proc *InputDiffProcessor) Process() <-chan interface{} {
@@ -37,18 +83,39 @@ func (proc *InputDiffProcessor) Process() <-chan interface{} {
 			switch t := iLog.(type) {
 			case *TouchScreenEvent:
 				{
-					// New event
 					if curEvent != nil {
-						curEvent.Eclipsed = true
-						outChan <- curEvent
-					}
-					if t.What == TouchScreenEventTap {
-						curEvent = &InputDiffEvent{
-							EventDetail: t,
-							Diffs:       make([]*InputDiffSample, 0),
+						if curEvent.complete {
+							curEvent.Eclipsed = true
+							outChan <- curEvent
+							curEvent = nil
+						} else if curEvent.EventDetail[0].What == TouchScreenEventScrollStart {
+							switch t.What {
+							default:
+								// Bad state, just discard
+								curEvent = nil
+							case TouchScreenEventScroll:
+								// Keep going with this event
+								curEvent.EventDetail = append(curEvent.EventDetail, t)
+							case TouchScreenEventScrollEnd:
+								curEvent.EventDetail = append(curEvent.EventDetail, t)
+								curEvent.complete = true
+							}
+						} else {
+							panic("Unexpected condition in InputDiffProcessor")
 						}
-					} else {
-						curEvent = nil
+					}
+
+					if curEvent == nil {
+						if (t.What == TouchScreenEventTap && proc.Args.DoTaps) ||
+							(t.What == TouchScreenEventKey && proc.Args.DoKeys) ||
+							(t.What == TouchScreenEventScrollStart && proc.Args.DoScrolls) {
+
+							curEvent = &InputDiffEvent{
+								EventDetail: []*TouchScreenEvent{t},
+								Diffs:       make([]*InputDiffSample, 0),
+								complete:    t.What != TouchScreenEventScrollStart,
+							}
+						}
 					}
 				}
 
@@ -62,23 +129,33 @@ func (proc *InputDiffProcessor) Process() <-chan interface{} {
 					(&t.SFFrameDiff).initScreenGrid(allScreenGrids[0])
 
 					diffTsMs := t.SFFrameDiff.Timestamp
-					curEventMs := curEvent.EventDetail.Timestamp / 1000000
+					curDetail := curEvent.EventDetail[len(curEvent.EventDetail)-1]
+					curEventMs := curDetail.Timestamp / 1000000
 
-					if diffTsMs-curEventMs <= proc.DiffDurationMs {
+					if diffTsMs-curEventMs <= proc.Args.DiffDurationMs || !curEvent.complete {
 
-						localDiff, err := t.SFFrameDiff.LocalDiff(FourConnected,
-							curEvent.EventDetail.X, curEvent.EventDetail.Y)
+						allConn := []PixelConnectivity{OneConnected, FourConnected, EightConnected}
+						diffs := make([]*LocalDiffSample, 3, 3)
 
-						if err != nil {
-							// TODO: Wrong logger
-							fmt.Println("Error getting local diff:", err)
-						} else {
-							curEvent.Diffs = append(curEvent.Diffs, &InputDiffSample{
-								Timestamp:  t.SFFrameDiff.Timestamp,
-								LocalDiff:  localDiff,
-								GlobalDiff: t.SFFrameDiff.PctDiff,
-							})
+						for i, conn := range allConn {
+							localDiff, sz, err := t.SFFrameDiff.LocalDiff(conn,
+								curDetail.X, curDetail.Y)
+							if err != nil {
+								// TODO: Log
+								panic(fmt.Sprintf("Error getting local diff: %v", err))
+							}
+							diffs[i] = &LocalDiffSample{localDiff, sz}
 						}
+
+						curEvent.Diffs = append(curEvent.Diffs, &InputDiffSample{
+							Timestamp:  t.SFFrameDiff.Timestamp,
+							LocalDiff1: diffs[0],
+							LocalDiff4: diffs[1],
+							LocalDiff8: diffs[2],
+							GlobalDiff: t.SFFrameDiff.PctDiff,
+							NumChanges: len(t.SFFrameDiff.GridEntries),
+						})
+
 					} else {
 						outChan <- curEvent
 						curEvent = nil
@@ -101,23 +178,13 @@ func (proc *InputDiffProcessor) Process() <-chan interface{} {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const DefaultDiffDuration = 5000
-
 type InputDiffProcessorGenerator struct{}
 
 func (g *InputDiffProcessorGenerator) GenerateProcessor(source *phonelab.PipelineSourceInstance,
 	kwargs map[string]interface{}) phonelab.Processor {
 
-	diffDuration := DefaultDiffDuration
-
-	if val, ok := kwargs["diff_duration_ms"]; ok {
-		if diffDuration, ok = val.(int); !ok {
-			fmt.Printf("Warning: wrong type for 'diff_duration_ms' (*T)\n", diffDuration)
-		}
-	}
-
 	return &InputDiffProcessor{
-		Source:         source.Processor,
-		DiffDurationMs: int64(diffDuration),
+		Source: source.Processor,
+		Args:   NewInputDiffProcessorArgs(kwargs),
 	}
 }

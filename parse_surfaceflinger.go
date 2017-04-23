@@ -149,7 +149,8 @@ func (diff *SFFrameDiff) initScreenGrid(props *screenGridProps) {
 type PixelConnectivity int
 
 const (
-	FourConnected  PixelConnectivity = 4
+	OneConnected   PixelConnectivity = 0
+	FourConnected                    = 4
 	EightConnected                   = 8
 )
 
@@ -158,25 +159,28 @@ type position struct {
 	col int
 }
 
-func (diff *SFFrameDiff) LocalDiff(connectivity PixelConnectivity, x, y float64) (float64, error) {
-	if connectivity != FourConnected && connectivity != EightConnected {
-		return 0.0, fmt.Errorf("Invalid connectivity '%v', expected 4 or 8", connectivity)
+func (diff *SFFrameDiff) LocalDiff(connectivity PixelConnectivity, x, y float64) (float64, int, error) {
+	if connectivity != FourConnected && connectivity != EightConnected && connectivity != OneConnected {
+		return 0.0, 0, fmt.Errorf("Invalid connectivity '%v', expected 4 or 8", connectivity)
 	}
 
 	props := diff.Grid.props
 
 	row, col := props.gridPosFromXY(x, y)
 	if row < 0 || col < 0 {
-		return 0.0, fmt.Errorf("Invalid positions: x=%v, y=%v is out of bounds", x, y)
+		return 0.0, 0, fmt.Errorf("Invalid positions: x=%v, y=%v is out of bounds", x, y)
 	}
 
 	positions := make([]*position, 0, int(connectivity)+1)
 
 	positions = append(positions, &position{row, col})
-	positions = append(positions, &position{row - 1, col})
-	positions = append(positions, &position{row + 1, col})
-	positions = append(positions, &position{row, col - 1})
-	positions = append(positions, &position{row, col + 1})
+
+	if connectivity != OneConnected {
+		positions = append(positions, &position{row - 1, col})
+		positions = append(positions, &position{row + 1, col})
+		positions = append(positions, &position{row, col - 1})
+		positions = append(positions, &position{row, col + 1})
+	}
 
 	if connectivity == EightConnected {
 		positions = append(positions, &position{row - 1, col - 1})
@@ -202,7 +206,7 @@ func (diff *SFFrameDiff) LocalDiff(connectivity PixelConnectivity, x, y float64)
 		}
 	}
 
-	return sum / float64(count), nil
+	return sum / float64(count), count, nil
 }
 
 type SFFrameDiffsJsonParserProps struct{}

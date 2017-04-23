@@ -7,12 +7,12 @@ import (
 )
 
 type TouchScreenEvent struct {
-	What      int
-	Timestamp int64
-	TraceTime float64
-	X         float64
-	Y         float64
-	Code      int
+	What      int     `json:"what"`
+	Timestamp int64   `json:"timestamp"`
+	TraceTime float64 `json:"tracetime"`
+	X         float64 `json:"x"`
+	Y         float64 `json:"y"`
+	Code      int     `json:"code"`
 }
 
 func (event *TouchScreenEvent) MonotonicTimestamp() float64 {

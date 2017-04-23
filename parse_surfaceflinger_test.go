@@ -455,11 +455,11 @@ func TestSFLocalDiffs(t *testing.T) {
 
 	diff.initScreenGrid(allScreenGrids[0])
 
-	pctDiff, err := diff.LocalDiff(FourConnected, 1400.0, 2500.0)
+	pctDiff, _, err := diff.LocalDiff(FourConnected, 1400.0, 2500.0)
 	assert.Equal(100.0, pctDiff)
 	assert.Nil(err)
 
-	pctDiff, err = diff.LocalDiff(EightConnected, 1400.0, 2500.0)
+	pctDiff, _, err = diff.LocalDiff(EightConnected, 1400.0, 2500.0)
 	assert.Equal(300.0/4.0, pctDiff)
 	assert.Nil(err)
 
@@ -511,7 +511,7 @@ func TestSFLocalDiffs(t *testing.T) {
 
 	sum = 20.6 + 50.0 + 50.0 + 65.0 + 70.0
 
-	pctDiff, err = diff.LocalDiff(FourConnected, 700.0, 1000.0)
+	pctDiff, _, err = diff.LocalDiff(FourConnected, 700.0, 1000.0)
 	assert.Equal(float64(sum/5.0), pctDiff)
 	assert.Nil(err)
 
@@ -521,7 +521,7 @@ func TestSFLocalDiffs(t *testing.T) {
 		sum += ge.Value
 	}
 
-	pctDiff, err = diff.LocalDiff(EightConnected, 700.0, 1000.0)
+	pctDiff, _, err = diff.LocalDiff(EightConnected, 700.0, 1000.0)
 	assert.Equal(sum/9.0, pctDiff)
 	assert.Nil(err)
 
