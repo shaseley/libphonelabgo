@@ -279,9 +279,9 @@ func NewSpinnerCollectorProcessor(inst *phonelab.PipelineSourceInstance, args ma
 		SpinnerConf: NewSpinnerAlgoConf(args),
 		Source:      inst.Processor,
 	}
-	if v, ok := inst.Info["file_name"]; ok {
-		res.FileName = v.(string)
-	}
+
+	res.FileName = inst.Info.Context()
+
 	return res
 }
 

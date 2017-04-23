@@ -15,7 +15,7 @@ type SpinnerDataCollector struct {
 	sync.Mutex
 }
 
-func (dc *SpinnerDataCollector) OnData(data interface{}) {
+func (dc *SpinnerDataCollector) OnData(data interface{}, info phonelab.PipelineSourceInfo) {
 	dc.Lock()
 	defer dc.Unlock()
 
@@ -33,7 +33,7 @@ func TestSpinners(t *testing.T) {
 	require := require.New(t)
 
 	confString := `
-data_collector: main
+data_collector: {name: main}
 source:
   type: files
   sources: ["./test/test.log"]
@@ -76,7 +76,7 @@ sink:
 	AddParsers(env)
 	AddProcessors(env)
 
-	env.DataCollectors["main"] = func() phonelab.DataCollector {
+	env.DataCollectors["main"] = func(kargs map[string]interface{}) phonelab.DataCollector {
 		return &SpinnerDataCollector{
 			t:     t,
 			total: 0,
