@@ -32,6 +32,23 @@ func NewSFFpsParer() phonelab.Parser {
 	return phonelab.NewJSONParser(&SFFpsParserProps{})
 }
 
+// Example:
+// 2017-04-25 12:27:30.713.713999999 11237 11237 I SurfaceFlinger: {"ft_token":12, "times":[32149519089268,32149536072757,32149552896768,32149586269372,32149602984164,32149653607080,32149671089632,32149687328382,32149721374789,32149737946091,32149755442289,32149772077393,32149788590726,32149805492028,32149822233590,32149840559632,32149856163018,32149873109840,32149940872601,32149957166559,32150007928903,32150058306715,32150108952340,32150159534320,32150226974945,32150244002861,32150278004267,32150361778069,32150446512913,32150513607861]}
+type SFFrameTimesLog struct {
+	Token int64   `json:"ft_token"`
+	Times []int64 `json:"times"`
+}
+
+type SFFrameTimesParserProps struct{}
+
+func (p *SFFrameTimesParserProps) New() interface{} {
+	return &SFFrameTimesLog{}
+}
+
+func NewSFFrameTimesParser() phonelab.Parser {
+	return phonelab.NewJSONParser(&SFFrameTimesParserProps{})
+}
+
 // Example -- old logs -- malformed json :-(
 //3a45bd43-82d2-4650-8571-039f48c0fdca 2016-12-02 03:03:27.885999782 453830 [184538.724191]   291   291 I SurfaceFlinger: {"token":1699, "diffs":[[184533085, 0.000000],[184533135, 0.000000],[184533880, 0.000000],[184533941, 0.493028],[184533994, 69.184029],[184534044, 100.000000],[184534095, 100.000000],[184534146, 99.305557],[184534196, 97.222221],[184534246, 93.315971],[184534297, 71.571182],[184534347, 0.000000],[184538215, 100.000000],[184538279, 0.010851],[184538333, 0.008138],[184538384, 0.007968],[184538429, 0.007629],[184538497, 0.008138],[184538563, 0.008816],[184538632, 0.008816]]}
 type SFFrameDiffLog struct {
@@ -230,15 +247,17 @@ func NewSFFrameDiffsJsonParser() phonelab.Parser {
 // SurfaceFlingerParser parses logs with the SurfaceFlinger tag.
 // Currently, it handles FPS and frame diff logs.
 type SurfaceFlingerParser struct {
-	fpsJsonParser  phonelab.Parser
-	diffJsonParser phonelab.Parser
+	fpsJsonParser   phonelab.Parser
+	diffJsonParser  phonelab.Parser
+	timesJsonParser phonelab.Parser
 }
 
 // Create a new SurfaceFlingerParser
 func NewSurfaceFlingerParser() phonelab.Parser {
 	return &SurfaceFlingerParser{
-		fpsJsonParser:  NewSFFpsParer(),
-		diffJsonParser: NewSFFrameDiffsJsonParser(),
+		fpsJsonParser:   NewSFFpsParer(),
+		diffJsonParser:  NewSFFrameDiffsJsonParser(),
+		timesJsonParser: NewSFFrameTimesParser(),
 	}
 }
 
@@ -253,6 +272,8 @@ func (parser *SurfaceFlingerParser) Parse(payload string) (interface{}, error) {
 	} else if strings.Contains(payload, `"diffs":[[`) {
 		// Old JSON with heterogeneous arrays
 		return parseAndConvertOldDiffLog(payload)
+	} else if strings.Contains(payload, `"ft_token":`) {
+		return parser.timesJsonParser.Parse(payload)
 	} else {
 		// We can't parse it
 		return nil, nil
