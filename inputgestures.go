@@ -94,6 +94,9 @@ func (g GesturePointerState) Update(event *IFMotionEventLog) error {
 			for _, ptr := range event.PointerData {
 				if data, ok := g[ptr.Id]; !ok {
 					return fmt.Errorf("Not tracking pointer id: %v", ptr.Id)
+				} else if ptr.Orientation != 0.0 {
+					data.X = ptr.YPos
+					data.Y = ptr.XPos
 				} else {
 					data.X = ptr.XPos
 					data.Y = ptr.YPos
