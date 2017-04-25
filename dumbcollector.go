@@ -3,6 +3,7 @@ package libphonelabgo
 import (
 	"encoding/json"
 	"fmt"
+	phonelab "github.com/shaseley/phonelab-go"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -22,7 +23,7 @@ func NewDumbCollector() *DumbCollector {
 	}
 }
 
-func (dc *DumbCollector) OnData(data interface{}) {
+func (dc *DumbCollector) OnData(data interface{}, info phonelab.PipelineSourceInfo) {
 	dc.Lock()
 	defer dc.Unlock()
 
