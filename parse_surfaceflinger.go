@@ -159,7 +159,7 @@ type position struct {
 	col int
 }
 
-func (diff *SFFrameDiff) LocalDiff(connectivity PixelConnectivity, x, y float64) (float64, int, error) {
+func (diff *SFFrameDiff) LocalDiff(connectivity PixelConnectivity, x, y float64) (float64, float64, error) {
 	if connectivity != FourConnected && connectivity != EightConnected && connectivity != OneConnected {
 		return 0.0, 0, fmt.Errorf("Invalid connectivity '%v', expected 4 or 8", connectivity)
 	}
@@ -192,12 +192,18 @@ func (diff *SFFrameDiff) LocalDiff(connectivity PixelConnectivity, x, y float64)
 	sum := float64(0)
 	count := 0
 
+	globalSum := 0.0
+
 	for _, p := range positions {
 		if p.row >= 0 && p.col >= 0 && p.row < props.rows && p.col < props.cols {
 			pctDiff := diff.Grid.grid[p.row][p.col]
+
+			globalSum += pctDiff
+
 			if p.row == props.rows-1 {
 				pctDiff *= props.edgeMultRow
 			}
+
 			if p.col == props.cols-1 {
 				pctDiff *= props.edgeMultCol
 			}
@@ -206,7 +212,7 @@ func (diff *SFFrameDiff) LocalDiff(connectivity PixelConnectivity, x, y float64)
 		}
 	}
 
-	return sum / float64(count), count, nil
+	return sum / float64(count), globalSum / (8.0 * 4.5), nil
 }
 
 type SFFrameDiffsJsonParserProps struct{}

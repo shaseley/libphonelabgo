@@ -13,8 +13,8 @@ type InputDiffProcessor struct {
 }
 
 type LocalDiffSample struct {
-	Diff float64 `json:"diff"`
-	Size int     `json:"size"`
+	Diff       float64 `json:"diff"`
+	GlobalDiff float64 `json:"global_diff"`
 }
 
 type InputDiffSample struct {
