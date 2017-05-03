@@ -197,6 +197,122 @@ func TestISMLocalResponse(t *testing.T) {
 	commonTestInputStateMachine(events, diffs, states, expected, t)
 }
 
+func TestISMGlobalResponse(t *testing.T) {
+	// Touch the upper left corner
+	events := []*TouchScreenEvent{
+		&TouchScreenEvent{
+			What:      TouchScreenEventTap,
+			Timestamp: 100 * nsPerMs,
+		},
+	}
+
+	diffs := []*FrameDiffSample{
+		// No diff
+		&FrameDiffSample{
+			SFFrameDiff: SFFrameDiff{
+				Timestamp:   150 * nsPerMs,
+				PctDiff:     0.0,
+				GridWH:      8,
+				GridEntries: []*GridEntry{},
+			},
+		},
+		// No diff
+		&FrameDiffSample{
+			SFFrameDiff: SFFrameDiff{
+				Timestamp:   200 * nsPerMs,
+				PctDiff:     0.0,
+				GridWH:      8,
+				GridEntries: []*GridEntry{},
+			},
+		},
+		// No diff
+		&FrameDiffSample{
+			SFFrameDiff: SFFrameDiff{
+				Timestamp:   200 * nsPerMs,
+				PctDiff:     0.0,
+				GridWH:      8,
+				GridEntries: []*GridEntry{},
+			},
+		},
+		// Now a large diff
+		&FrameDiffSample{
+			SFFrameDiff: SFFrameDiff{
+				Timestamp: 500 * nsPerMs,
+				PctDiff:   (8.0 * 100.0) / 36.0,
+				GridWH:    8,
+				GridEntries: []*GridEntry{
+					&GridEntry{
+						Position: 56,
+						Value:    100,
+					},
+					&GridEntry{
+						Position: 57,
+						Value:    100,
+					},
+					&GridEntry{
+						Position: 58,
+						Value:    100,
+					},
+					&GridEntry{
+						Position: 59,
+						Value:    100,
+					},
+					&GridEntry{
+						Position: 48,
+						Value:    100,
+					},
+					&GridEntry{
+						Position: 49,
+						Value:    100,
+					},
+					&GridEntry{
+						Position: 50,
+						Value:    100,
+					},
+					&GridEntry{
+						Position: 51,
+						Value:    100,
+					},
+				},
+			},
+		},
+		// This will cause the timeout
+		&FrameDiffSample{
+			SFFrameDiff: SFFrameDiff{
+				Timestamp:   6000 * nsPerMs,
+				PctDiff:     0.0,
+				GridWH:      8,
+				GridEntries: []*GridEntry{},
+			},
+		},
+	}
+	states := []int{
+		InputStateWaitResponse,
+		InputStateWaitResponse,
+		InputStateWaitResponse,
+		InputStateMeasureGlobal,
+		InputStateWaitInput,
+	}
+
+	expected := &TapEventResult{
+		TimestampNs: events[0].Timestamp,
+		FinishNs:    6000 * nsPerMs,
+		FinishType:  TapEventFinishTimeout,
+		LocalResponse: &ResponseDetail{
+			Jank:    make([]*JankEvent, 0),
+			StartNs: InvalidResponseTime,
+			EndNs:   InvalidResponseTime,
+		},
+		GlobalResponse: &ResponseDetail{
+			Jank:    make([]*JankEvent, 0),
+			StartNs: 500 * nsPerMs,
+			EndNs:   500 * nsPerMs,
+		},
+	}
+
+	commonTestInputStateMachine(events, diffs, states, expected, t)
+}
+
 func TestISMLocalGlobalResponse(t *testing.T) {
 	// Touch the upper left corner
 	events := []*TouchScreenEvent{
