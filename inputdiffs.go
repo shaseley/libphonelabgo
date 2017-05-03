@@ -30,6 +30,7 @@ type InputDiffEvent struct {
 	EventDetail []*TouchScreenEvent `json:"event_detail"`
 	Eclipsed    bool                `json:"eclipsed"`
 	Diffs       []*InputDiffSample  `json:"diffs"`
+	FrameTimes  []int64             `json:"frame_times"`
 	complete    bool
 }
 
@@ -40,6 +41,7 @@ type InputDiffProcessorArgs struct {
 	DoKeys         bool
 	DoScrolls      bool
 	DiffDurationMs int64
+	DoFrameTimes   bool
 }
 
 func NewInputDiffProcessorArgs(kwargs map[string]interface{}) *InputDiffProcessorArgs {
@@ -65,6 +67,10 @@ func NewInputDiffProcessorArgs(kwargs map[string]interface{}) *InputDiffProcesso
 			fmt.Printf("Warning: wrong type for 'diff_duration_ms' (*T)\n", diffDuration)
 		}
 		args.DiffDurationMs = int64(diffDuration)
+	}
+
+	if v, ok := kwargs["do_frametimes"]; ok {
+		args.DoFrameTimes, _ = v.(bool)
 	}
 
 	return args
@@ -114,6 +120,7 @@ func (proc *InputDiffProcessor) Process() <-chan interface{} {
 								EventDetail: []*TouchScreenEvent{t},
 								Diffs:       make([]*InputDiffSample, 0),
 								complete:    t.What != TouchScreenEventScrollStart,
+								FrameTimes:  make([]int64, 0),
 							}
 						}
 					}
@@ -161,6 +168,20 @@ func (proc *InputDiffProcessor) Process() <-chan interface{} {
 						curEvent = nil
 					}
 
+				}
+			case *FrameRefreshEvent:
+				{
+					if proc.Args.DoFrameTimes && curEvent != nil {
+
+						curDetail := curEvent.EventDetail[len(curEvent.EventDetail)-1]
+
+						if (t.SysTimeNs-curDetail.Timestamp)/1000000 <= proc.Args.DiffDurationMs || !curEvent.complete {
+							curEvent.FrameTimes = append(curEvent.FrameTimes, t.SysTimeNs)
+						} else {
+							outChan <- curEvent
+							curEvent = nil
+						}
+					}
 				}
 			}
 		}
