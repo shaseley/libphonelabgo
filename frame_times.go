@@ -63,14 +63,15 @@ func (emitter *FrameRefreshEmitter) Process() <-chan interface{} {
 				}
 			}
 		}
+		close(outChan)
 	}()
 
 	return outChan
 }
 
-type FrameRefreshEmiiterGen struct{}
+type FrameRefreshEmitterGen struct{}
 
-func (g *FrameRefreshEmiiterGen) GenerateProcessor(source *phonelab.PipelineSourceInstance,
+func (g *FrameRefreshEmitterGen) GenerateProcessor(source *phonelab.PipelineSourceInstance,
 	kwargs map[string]interface{}) phonelab.Processor {
 
 	return &FrameRefreshEmitter{

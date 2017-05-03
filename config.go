@@ -50,5 +50,5 @@ func AddProcessors(env *phonelab.Environment) {
 	env.Processors["timesync"] = &TimeSyncPreprocessorGenerator{}
 
 	// Frame samples
-	env.Processors["frametimes"] = &FrameDiffEmitterGenerator{}
+	env.Processors["frametimes"] = &FrameRefreshEmitterGen{}
 }
