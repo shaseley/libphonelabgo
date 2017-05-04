@@ -19,6 +19,7 @@ func commonTestInputStateMachine(events []*TouchScreenEvent, diffStream []*Frame
 	require.Equal(len(states), len(diffStream))
 
 	ism := NewInputStateMachine()
+	ism.Params.UITimeoutMs = 5000
 
 	require.NotNil(ism)
 	assert.Equal(InputStateWaitInput, ism.curState)
@@ -96,7 +97,7 @@ func TestISMLocalResponse(t *testing.T) {
 		// No diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   150 * nsPerMs,
+				Timestamp:   150,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},
@@ -105,7 +106,7 @@ func TestISMLocalResponse(t *testing.T) {
 		// No diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   200 * nsPerMs,
+				Timestamp:   200,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},
@@ -114,7 +115,7 @@ func TestISMLocalResponse(t *testing.T) {
 		// No diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   200 * nsPerMs,
+				Timestamp:   200,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},
@@ -123,7 +124,7 @@ func TestISMLocalResponse(t *testing.T) {
 		// Local response (0, 0), 100% of the diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp: 250 * nsPerMs,
+				Timestamp: 250,
 				PctDiff:   100.0 / 72.0,
 				GridWH:    8,
 				GridEntries: []*GridEntry{
@@ -137,7 +138,7 @@ func TestISMLocalResponse(t *testing.T) {
 		// Same thing
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp: 300 * nsPerMs,
+				Timestamp: 300,
 				PctDiff:   100.0 / 72.0,
 				GridWH:    8,
 				GridEntries: []*GridEntry{
@@ -152,7 +153,7 @@ func TestISMLocalResponse(t *testing.T) {
 		// No diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   3300 * nsPerMs,
+				Timestamp:   3300,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},
@@ -161,7 +162,7 @@ func TestISMLocalResponse(t *testing.T) {
 		// This one should trigger the timeout
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   6300 * nsPerMs,
+				Timestamp:   6300,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},
@@ -210,7 +211,7 @@ func TestISMGlobalResponse(t *testing.T) {
 		// No diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   150 * nsPerMs,
+				Timestamp:   150,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},
@@ -219,7 +220,7 @@ func TestISMGlobalResponse(t *testing.T) {
 		// No diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   200 * nsPerMs,
+				Timestamp:   200,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},
@@ -228,7 +229,7 @@ func TestISMGlobalResponse(t *testing.T) {
 		// No diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   200 * nsPerMs,
+				Timestamp:   200,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},
@@ -237,7 +238,7 @@ func TestISMGlobalResponse(t *testing.T) {
 		// Now a large diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp: 500 * nsPerMs,
+				Timestamp: 500,
 				PctDiff:   (8.0 * 100.0) / 36.0,
 				GridWH:    8,
 				GridEntries: []*GridEntry{
@@ -279,7 +280,7 @@ func TestISMGlobalResponse(t *testing.T) {
 		// This will cause the timeout
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   6000 * nsPerMs,
+				Timestamp:   6000,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},
@@ -326,7 +327,7 @@ func TestISMLocalGlobalResponse(t *testing.T) {
 		// No diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   150 * nsPerMs,
+				Timestamp:   150,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},
@@ -335,7 +336,7 @@ func TestISMLocalGlobalResponse(t *testing.T) {
 		// No diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   200 * nsPerMs,
+				Timestamp:   200,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},
@@ -344,7 +345,7 @@ func TestISMLocalGlobalResponse(t *testing.T) {
 		// No diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   200 * nsPerMs,
+				Timestamp:   200,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},
@@ -353,7 +354,7 @@ func TestISMLocalGlobalResponse(t *testing.T) {
 		// Local response (0, 0), 100% of the diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp: 250 * nsPerMs,
+				Timestamp: 250,
 				PctDiff:   100.0 / 72.0,
 				GridWH:    8,
 				GridEntries: []*GridEntry{
@@ -367,7 +368,7 @@ func TestISMLocalGlobalResponse(t *testing.T) {
 		// Same thing
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp: 300 * nsPerMs,
+				Timestamp: 300,
 				PctDiff:   100.0 / 72.0,
 				GridWH:    8,
 				GridEntries: []*GridEntry{
@@ -382,7 +383,7 @@ func TestISMLocalGlobalResponse(t *testing.T) {
 		// No diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   3300 * nsPerMs,
+				Timestamp:   3300,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},
@@ -391,7 +392,7 @@ func TestISMLocalGlobalResponse(t *testing.T) {
 		// Now a large diff
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp: 6300 * nsPerMs,
+				Timestamp: 6300,
 				PctDiff:   (8.0 * 100.0) / 36.0,
 				GridWH:    8,
 				GridEntries: []*GridEntry{
@@ -432,7 +433,7 @@ func TestISMLocalGlobalResponse(t *testing.T) {
 		},
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp: 6400 * nsPerMs,
+				Timestamp: 6400,
 				PctDiff:   100.0 / 36.0,
 				GridWH:    8,
 				GridEntries: []*GridEntry{
@@ -446,7 +447,7 @@ func TestISMLocalGlobalResponse(t *testing.T) {
 		// This will cause the timeout
 		&FrameDiffSample{
 			SFFrameDiff: SFFrameDiff{
-				Timestamp:   11500 * nsPerMs,
+				Timestamp:   11500,
 				PctDiff:     0.0,
 				GridWH:      8,
 				GridEntries: []*GridEntry{},

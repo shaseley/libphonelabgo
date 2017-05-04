@@ -51,4 +51,8 @@ func AddProcessors(env *phonelab.Environment) {
 
 	// Frame samples
 	env.Processors["frametimes"] = &FrameRefreshEmitterGen{}
+
+	// Input state machine
+	env.Processors["input_state_machine"] =
+		&phonelab.ProcessorGenWrapper{GenerateISMProcessor}
 }
