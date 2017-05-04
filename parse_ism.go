@@ -4,7 +4,7 @@ import (
 	phonelab "github.com/shaseley/phonelab-go"
 )
 
-// InputServiceManager (IMS) lifecycle logs
+// InputManagerService (IMS) lifecycle logs
 type IMSLifeCycleLog struct {
 	phonelab.PLLog
 	Action   string `json:"Action"`
