@@ -66,6 +66,10 @@ type SFFrameDiff struct {
 	Grid        *ScreenGrid  `json:"-"`
 }
 
+func (diff *SFFrameDiff) TimestampNs() int64 {
+	return diff.Timestamp * nsPerMs
+}
+
 type GridEntry struct {
 	Position int     `json:"p"`
 	Value    float64 `json:"v"`
@@ -229,6 +233,7 @@ func (diff *SFFrameDiff) LocalDiff(connectivity PixelConnectivity, x, y float64)
 		}
 	}
 
+	// FIXME: Remove hard-coded hack
 	return sum / float64(count), globalSum / (8.0 * 4.5), nil
 }
 
