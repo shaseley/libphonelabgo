@@ -19,7 +19,12 @@ func commonTestInputStateMachine(events []*TouchScreenEvent, diffStream []*Frame
 	require.Equal(len(states), len(diffStream))
 
 	ism := NewInputStateMachine()
+
+	// The tests were written with longer timeouts
 	ism.Params.UITimeoutMs = 5000
+
+	// Don't check for jank
+	ism.Params.JankThresholdMs = 10000000
 
 	require.NotNil(ism)
 	assert.Equal(InputStateWaitInput, ism.curState)
@@ -49,6 +54,8 @@ func commonTestInputStateMachine(events []*TouchScreenEvent, diffStream []*Frame
 	require.NotNil(res)
 
 	// Finally, check the expected result
+	t.Log(expected)
+	t.Log(res)
 	assert.True(reflect.DeepEqual(expected, res))
 }
 
@@ -69,13 +76,12 @@ func TestISMShortCircuit(t *testing.T) {
 		TimestampNs: events[0].Timestamp,
 		FinishNs:    events[1].Timestamp,
 		FinishType:  TapEventFinishShortCircuit,
+		Jank:        make([]*JankEvent, 0),
 		LocalResponse: &ResponseDetail{
-			Jank:    make([]*JankEvent, 0),
 			StartNs: InvalidResponseTime,
 			EndNs:   InvalidResponseTime,
 		},
 		GlobalResponse: &ResponseDetail{
-			Jank:    make([]*JankEvent, 0),
 			StartNs: InvalidResponseTime,
 			EndNs:   InvalidResponseTime,
 		},
@@ -183,13 +189,12 @@ func TestISMLocalResponse(t *testing.T) {
 		TimestampNs: events[0].Timestamp,
 		FinishNs:    6300 * nsPerMs,
 		FinishType:  TapEventFinishTimeout,
+		Jank:        make([]*JankEvent, 0),
 		LocalResponse: &ResponseDetail{
-			Jank:    make([]*JankEvent, 0),
 			StartNs: 250 * nsPerMs,
 			EndNs:   300 * nsPerMs,
 		},
 		GlobalResponse: &ResponseDetail{
-			Jank:    make([]*JankEvent, 0),
 			StartNs: InvalidResponseTime,
 			EndNs:   InvalidResponseTime,
 		},
@@ -299,13 +304,12 @@ func TestISMGlobalResponse(t *testing.T) {
 		TimestampNs: events[0].Timestamp,
 		FinishNs:    6000 * nsPerMs,
 		FinishType:  TapEventFinishTimeout,
+		Jank:        make([]*JankEvent, 0),
 		LocalResponse: &ResponseDetail{
-			Jank:    make([]*JankEvent, 0),
 			StartNs: InvalidResponseTime,
 			EndNs:   InvalidResponseTime,
 		},
 		GlobalResponse: &ResponseDetail{
-			Jank:    make([]*JankEvent, 0),
 			StartNs: 500 * nsPerMs,
 			EndNs:   500 * nsPerMs,
 		},
@@ -470,13 +474,12 @@ func TestISMLocalGlobalResponse(t *testing.T) {
 		TimestampNs: events[0].Timestamp,
 		FinishNs:    11500 * nsPerMs,
 		FinishType:  TapEventFinishTimeout,
+		Jank:        make([]*JankEvent, 0),
 		LocalResponse: &ResponseDetail{
-			Jank:    make([]*JankEvent, 0),
 			StartNs: 250 * nsPerMs,
 			EndNs:   300 * nsPerMs,
 		},
 		GlobalResponse: &ResponseDetail{
-			Jank:    make([]*JankEvent, 0),
 			StartNs: 6300 * nsPerMs,
 			EndNs:   6400 * nsPerMs,
 		},

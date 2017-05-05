@@ -6,6 +6,7 @@ import (
 )
 
 var ismDebug = false
+var ignoreFrameTimes = true
 
 // InputStateMachine parameters. These control what we consider local vs.
 // global response, jankiness, timeouts, etc.
@@ -92,6 +93,9 @@ type TapEventResult struct {
 	FinishType     int             `json:"finish_type"`
 	LocalResponse  *ResponseDetail `json:"local_response"`
 	GlobalResponse *ResponseDetail `json:"global_response"`
+	Jank           []*JankEvent    `json:"jank_events"`
+
+	prevFrameTime int64
 }
 
 func NewTapEventResult(event *TouchScreenEvent) *TapEventResult {
@@ -99,6 +103,7 @@ func NewTapEventResult(event *TouchScreenEvent) *TapEventResult {
 		TimestampNs:    event.Timestamp,
 		LocalResponse:  NewResponseDetail(),
 		GlobalResponse: NewResponseDetail(),
+		Jank:           make([]*JankEvent, 0),
 	}
 }
 
@@ -149,17 +154,14 @@ func (t *TapEventResult) ContentDelayMs() int64 {
 // ResponseDetail contains the information needed to capture the performance
 // metrics for either a local or global response to an input event.
 type ResponseDetail struct {
-	StartNs int64        `json:"start_ns"`
-	EndNs   int64        `json:"end_ns"`
-	Jank    []*JankEvent `json:"jank_events"`
+	StartNs int64 `json:"start_ns"`
+	EndNs   int64 `json:"end_ns"`
 
-	params        *InputStateMachineParams `json:"-"`
-	prevFrameTime int64
+	params *InputStateMachineParams `json:"-"`
 }
 
 func NewResponseDetail() *ResponseDetail {
 	return &ResponseDetail{
-		Jank:    make([]*JankEvent, 0),
 		StartNs: InvalidResponseTime,
 		EndNs:   InvalidResponseTime,
 	}
@@ -196,20 +198,6 @@ func (response *ResponseDetail) onFrameDiff(diff *FrameDiffSample) {
 	response.EndNs = diff.TimestampNs()
 }
 
-// Update the response with a new screen refresh event and check for jank.
-func (response *ResponseDetail) onFrameRefresh(event *FrameRefreshEvent, jankThresholdMs int64) {
-	if response.prevFrameTime > 0 {
-		diff := (event.SysTimeNs - response.prevFrameTime) / 1000000
-		if diff >= jankThresholdMs {
-			response.Jank = append(response.Jank, &JankEvent{
-				TimestampNs: event.SysTimeNs,
-				JankAmount:  diff,
-			})
-		}
-	}
-	response.prevFrameTime = event.SysTimeNs
-}
-
 // Short-circuit the current result/analysis. This gets called when we're
 // analyzing the post-tap stream and another input event comes along.
 func (ism *InputStateMachine) shortCircuit(ts int64) *TapEventResult {
@@ -220,6 +208,7 @@ func (ism *InputStateMachine) shortCircuit(ts int64) *TapEventResult {
 	// Finish detail
 	ism.curResult.FinishType = TapEventFinishShortCircuit
 	ism.curResult.FinishNs = ts
+	ism.curResult.prevFrameTime = 0
 
 	// TODO: Do we need to detect timeouts here?
 	// If the diffs interlace zeros, then probably not since we'll have
@@ -233,6 +222,7 @@ func (ism *InputStateMachine) handleTimeout(ts int64) *TapEventResult {
 	res := ism.curResult
 	res.FinishType = TapEventFinishTimeout
 	res.FinishNs = ts
+	res.prevFrameTime = 0
 
 	// --> InputStateWaitInput
 	ism.reset()
@@ -334,6 +324,7 @@ func (ism *InputStateMachine) startWaitingForResponse(event *TouchScreenEvent) {
 	ism.curState = InputStateWaitResponse
 	ism.curEvent = event
 	ism.curResult = NewTapEventResult(event)
+	ism.curResult.prevFrameTime = event.Timestamp / 1000000
 }
 
 // State change from InputStateWaitResponse --> InputStateMeasureLocal
@@ -386,6 +377,20 @@ func (ism *InputStateMachine) OnFrameDiff(diff *FrameDiffSample) *TapEventResult
 		rt == responseTypeNone && ism.curState == InputStateWaitResponse {
 
 		ism.pendingResponseStartNs = InvalidResponseTime
+	}
+
+	// Jank check
+	if ism.curResult != nil && diff.PctDiff > 0.0 {
+		if ism.curResult.prevFrameTime > 0 {
+			delta := diff.Timestamp - ism.curResult.prevFrameTime
+			if delta >= ism.Params.JankThresholdMs {
+				ism.curResult.Jank = append(ism.curResult.Jank, &JankEvent{
+					TimestampNs: diff.TimestampNs(),
+					JankAmount:  delta,
+				})
+			}
+			ism.curResult.prevFrameTime = diff.Timestamp
+		}
 	}
 
 	// Handle timeouts in one shot
@@ -486,6 +491,11 @@ func (ism *InputStateMachine) OnFrameRefresh(event *FrameRefreshEvent) *TapEvent
 	// At this point, we'll only use this info to update the jankiness, so we'll always
 	// return nil.
 
+	// TODO: This whole function probably needs to be removed
+	if ignoreFrameTimes {
+		return nil
+	}
+
 	switch ism.curState {
 	default:
 		{
@@ -499,14 +509,21 @@ func (ism *InputStateMachine) OnFrameRefresh(event *FrameRefreshEvent) *TapEvent
 				}
 			}
 		}
+		fallthrough
 	case InputStateMeasureLocal:
-		{
-			ism.curResult.LocalResponse.onFrameRefresh(event, ism.Params.JankThresholdMs)
-		}
-
+		fallthrough
 	case InputStateMeasureGlobal:
 		{
-			ism.curResult.GlobalResponse.onFrameRefresh(event, ism.Params.JankThresholdMs)
+			if ism.curResult.prevFrameTime > 0 {
+				diff := (event.SysTimeNs - ism.curResult.prevFrameTime) / 1000000
+				if diff >= ism.Params.JankThresholdMs {
+					ism.curResult.Jank = append(ism.curResult.Jank, &JankEvent{
+						TimestampNs: event.SysTimeNs,
+						JankAmount:  diff,
+					})
+				}
+			}
+			ism.curResult.prevFrameTime = event.SysTimeNs
 		}
 	}
 	return nil
