@@ -75,7 +75,8 @@ type JankEvent struct {
 }
 
 const (
-	InvalidResponseTime = -1
+	InvalidResponseTime     = -1
+	InvalidResponseDuration = 999999999999
 )
 
 const (
@@ -125,7 +126,7 @@ func (t *TapEventResult) GlobalResponseMs() int64 {
 	if t.HasGlobalResponse() {
 		return (t.GlobalResponse.StartNs - t.TimestampNs) / nsPerMs
 	} else {
-		return InvalidResponseTime
+		return InvalidResponseDuration
 	}
 }
 
@@ -141,7 +142,7 @@ func (t *TapEventResult) ContentDelayMs() int64 {
 	if t.HasGlobalResponse() {
 		return (t.GlobalResponse.StartNs - t.TimestampNs) / nsPerMs
 	} else {
-		return InvalidResponseTime
+		return InvalidResponseDuration
 	}
 }
 
@@ -169,16 +170,16 @@ func (response *ResponseDetail) HasResponse() bool {
 }
 
 func (response *ResponseDetail) DurationMs() int64 {
-	if response.StartNs == InvalidResponseTime {
-		return InvalidResponseTime
+	if response.StartNs == InvalidResponseTime || response.EndNs == InvalidResponseTime {
+		return InvalidResponseDuration
 	} else {
 		return (response.EndNs - response.StartNs) / nsPerMs
 	}
 }
 
 func (response *ResponseDetail) DurationNs() int64 {
-	if response.StartNs == InvalidResponseTime {
-		return InvalidResponseTime
+	if response.StartNs == InvalidResponseTime || response.EndNs == InvalidResponseTime {
+		return InvalidResponseDuration
 	} else {
 		return response.EndNs - response.StartNs
 	}
