@@ -12,6 +12,7 @@ var ignoreFrameTimes = true
 // global response, jankiness, timeouts, etc.
 type InputStateMachineParams struct {
 	JankThresholdMs       int64
+	JankFilterValue       float64
 	LocalResponsePercent  float64
 	GlobalResponsePercent float64
 	GlobalResponseRegions int
@@ -25,6 +26,7 @@ type InputStateMachineParams struct {
 func DefaultInputStateMachineParams() *InputStateMachineParams {
 	return &InputStateMachineParams{
 		JankThresholdMs:       70,
+		JankFilterValue:       0.1,
 		LocalResponsePercent:  60.0,
 		GlobalResponsePercent: 20.0,
 		GlobalResponseRegions: 10,
@@ -380,7 +382,7 @@ func (ism *InputStateMachine) OnFrameDiff(diff *FrameDiffSample) *TapEventResult
 	}
 
 	// Jank check
-	if ism.curResult != nil && diff.PctDiff > 0.0 {
+	if ism.curResult != nil && diff.PctDiff > ism.Params.JankFilterValue {
 		if ism.curResult.prevFrameTime > 0 {
 			delta := diff.Timestamp - ism.curResult.prevFrameTime
 			if delta >= ism.Params.JankThresholdMs {
@@ -389,8 +391,8 @@ func (ism *InputStateMachine) OnFrameDiff(diff *FrameDiffSample) *TapEventResult
 					JankAmount:  delta,
 				})
 			}
-			ism.curResult.prevFrameTime = diff.Timestamp
 		}
+		ism.curResult.prevFrameTime = diff.Timestamp
 	}
 
 	// Handle timeouts in one shot
