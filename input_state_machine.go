@@ -55,7 +55,7 @@ type InputStateMachine struct {
 
 	// State
 	curState  int
-	curResult *TapEventResult
+	curResult *InputEventResult
 	curEvent  *TouchScreenEvent
 
 	pendingResponseStartNs int64
@@ -87,9 +87,9 @@ const (
 	TapEventFinishShortCircuit
 )
 
-// TapEventResult encapsulates the response detail and performance metrics of a
+// InputEventResult encapsulates the response detail and performance metrics of a
 // single tap event.
-type TapEventResult struct {
+type InputEventResult struct {
 	TimestampNs    int64           `json:"timestamp_ns"`
 	FinishNs       int64           `json:"finish_ns"`
 	FinishType     int             `json:"finish_type"`
@@ -100,8 +100,8 @@ type TapEventResult struct {
 	prevFrameTime int64
 }
 
-func NewTapEventResult(event *TouchScreenEvent) *TapEventResult {
-	return &TapEventResult{
+func NewInputEventResult(event *TouchScreenEvent) *InputEventResult {
+	return &InputEventResult{
 		TimestampNs:    event.Timestamp,
 		LocalResponse:  NewResponseDetail(),
 		GlobalResponse: NewResponseDetail(),
@@ -109,19 +109,19 @@ func NewTapEventResult(event *TouchScreenEvent) *TapEventResult {
 	}
 }
 
-func (t *TapEventResult) HasLocalResponse() bool {
+func (t *InputEventResult) HasLocalResponse() bool {
 	return t.LocalResponse.HasResponse()
 }
 
-func (t *TapEventResult) HasGlobalResponse() bool {
+func (t *InputEventResult) HasGlobalResponse() bool {
 	return t.GlobalResponse.HasResponse()
 }
 
-func (t *TapEventResult) HasResponse() bool {
+func (t *InputEventResult) HasResponse() bool {
 	return t.HasLocalResponse() || t.HasLocalResponse()
 }
 
-func (t *TapEventResult) TouchResponseMs() int64 {
+func (t *InputEventResult) TouchResponseMs() int64 {
 	if t.HasLocalResponse() {
 		return (t.LocalResponse.StartNs - t.TimestampNs) / nsPerMs
 	} else {
@@ -129,7 +129,7 @@ func (t *TapEventResult) TouchResponseMs() int64 {
 	}
 }
 
-func (t *TapEventResult) GlobalResponseMs() int64 {
+func (t *InputEventResult) GlobalResponseMs() int64 {
 	if t.HasGlobalResponse() {
 		return (t.GlobalResponse.StartNs - t.TimestampNs) / nsPerMs
 	} else {
@@ -137,15 +137,15 @@ func (t *TapEventResult) GlobalResponseMs() int64 {
 	}
 }
 
-func (t *TapEventResult) LocalResponseDurationMs() int64 {
+func (t *InputEventResult) LocalResponseDurationMs() int64 {
 	return t.LocalResponse.DurationMs()
 }
 
-func (t *TapEventResult) GlobalResponseDurationMs() int64 {
+func (t *InputEventResult) GlobalResponseDurationMs() int64 {
 	return t.GlobalResponse.DurationMs()
 }
 
-func (t *TapEventResult) ContentDelayMs() int64 {
+func (t *InputEventResult) ContentDelayMs() int64 {
 	if t.HasGlobalResponse() {
 		return (t.GlobalResponse.StartNs - t.TimestampNs) / nsPerMs
 	} else {
@@ -202,7 +202,7 @@ func (response *ResponseDetail) onFrameDiff(diff *FrameDiffSample) {
 
 // Short-circuit the current result/analysis. This gets called when we're
 // analyzing the post-tap stream and another input event comes along.
-func (ism *InputStateMachine) shortCircuit(ts int64) *TapEventResult {
+func (ism *InputStateMachine) shortCircuit(ts int64) *InputEventResult {
 	if ism.curResult == nil {
 		return nil
 	}
@@ -220,7 +220,7 @@ func (ism *InputStateMachine) shortCircuit(ts int64) *TapEventResult {
 }
 
 // State change InputStateWaitResponse --> InputStateWaitInput
-func (ism *InputStateMachine) handleTimeout(ts int64) *TapEventResult {
+func (ism *InputStateMachine) handleTimeout(ts int64) *InputEventResult {
 	res := ism.curResult
 	res.FinishType = TapEventFinishTimeout
 	res.FinishNs = ts
@@ -291,7 +291,7 @@ func (ism *InputStateMachine) getResponseType(diff *FrameDiffSample) responseTyp
 }
 
 // Update state and possibly return an event result
-func (ism *InputStateMachine) OnTouchEvent(event *TouchScreenEvent) *TapEventResult {
+func (ism *InputStateMachine) OnTouchEvent(event *TouchScreenEvent) *InputEventResult {
 
 	// Skip key events
 	if event.What == TouchScreenEventKey {
@@ -300,7 +300,7 @@ func (ism *InputStateMachine) OnTouchEvent(event *TouchScreenEvent) *TapEventRes
 
 	// For all other touch events, this short-circuits the current state if
 	// we're not at the start/wait state.
-	var cur *TapEventResult = nil
+	var cur *InputEventResult = nil
 
 	if ism.curState != InputStateWaitInput {
 		cur = ism.shortCircuit(event.Timestamp)
@@ -325,8 +325,8 @@ func (ism *InputStateMachine) startWaitingForResponse(event *TouchScreenEvent) {
 
 	ism.curState = InputStateWaitResponse
 	ism.curEvent = event
-	ism.curResult = NewTapEventResult(event)
-	ism.curResult.prevFrameTime = event.Timestamp / 1000000
+	ism.curResult = NewInputEventResult(event)
+	//ism.curResult.prevFrameTime = event.Timestamp / 1000000
 }
 
 // State change from InputStateWaitResponse --> InputStateMeasureLocal
@@ -363,7 +363,7 @@ func (ism *InputStateMachine) startMeasuringRepsonse(response *ResponseDetail, d
 }
 
 // Update state and possibly return an event result.
-func (ism *InputStateMachine) OnFrameDiff(diff *FrameDiffSample) *TapEventResult {
+func (ism *InputStateMachine) OnFrameDiff(diff *FrameDiffSample) *InputEventResult {
 
 	// Short circuit: we don't do anything with diffs if we're waiting for
 	// input.
@@ -489,7 +489,7 @@ func (ism *InputStateMachine) OnFrameDiff(diff *FrameDiffSample) *TapEventResult
 	return nil
 }
 
-func (ism *InputStateMachine) OnFrameRefresh(event *FrameRefreshEvent) *TapEventResult {
+func (ism *InputStateMachine) OnFrameRefresh(event *FrameRefreshEvent) *InputEventResult {
 	// At this point, we'll only use this info to update the jankiness, so we'll always
 	// return nil.
 
@@ -532,7 +532,7 @@ func (ism *InputStateMachine) OnFrameRefresh(event *FrameRefreshEvent) *TapEvent
 }
 
 // Called when the input log stream is finished
-func (ism *InputStateMachine) Finish(ts int64) *TapEventResult {
+func (ism *InputStateMachine) Finish(ts int64) *InputEventResult {
 	if ism.curState != InputStateWaitInput {
 		// Just short-circuit the current test in the same way as if we would
 		// received a new touch event.

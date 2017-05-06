@@ -8,7 +8,7 @@ import (
 )
 
 func commonTestInputStateMachine(events []*TouchScreenEvent, diffStream []*FrameDiffSample,
-	states []int, expected *TapEventResult, t *testing.T) {
+	states []int, expected *InputEventResult, t *testing.T) {
 
 	assert := assert.New(t)
 	require := require.New(t)
@@ -72,7 +72,7 @@ func TestISMShortCircuit(t *testing.T) {
 		},
 	}
 
-	expected := &TapEventResult{
+	expected := &InputEventResult{
 		TimestampNs: events[0].Timestamp,
 		FinishNs:    events[1].Timestamp,
 		FinishType:  TapEventFinishShortCircuit,
@@ -185,7 +185,7 @@ func TestISMLocalResponse(t *testing.T) {
 		InputStateWaitInput,
 	}
 
-	expected := &TapEventResult{
+	expected := &InputEventResult{
 		TimestampNs: events[0].Timestamp,
 		FinishNs:    6300 * nsPerMs,
 		FinishType:  TapEventFinishTimeout,
@@ -300,7 +300,7 @@ func TestISMGlobalResponse(t *testing.T) {
 		InputStateWaitInput,
 	}
 
-	expected := &TapEventResult{
+	expected := &InputEventResult{
 		TimestampNs: events[0].Timestamp,
 		FinishNs:    6000 * nsPerMs,
 		FinishType:  TapEventFinishTimeout,
@@ -470,7 +470,7 @@ func TestISMLocalGlobalResponse(t *testing.T) {
 		InputStateWaitInput,
 	}
 
-	expected := &TapEventResult{
+	expected := &InputEventResult{
 		TimestampNs: events[0].Timestamp,
 		FinishNs:    11500 * nsPerMs,
 		FinishType:  TapEventFinishTimeout,
