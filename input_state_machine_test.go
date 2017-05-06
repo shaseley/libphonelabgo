@@ -67,12 +67,13 @@ func TestISMShortCircuit(t *testing.T) {
 			Timestamp: 100 * nsPerMs,
 		},
 		&TouchScreenEvent{
-			What:      TouchScreenEventScroll,
+			What:      TouchScreenEventTap,
 			Timestamp: 500 * nsPerMs,
 		},
 	}
 
 	expected := &InputEventResult{
+		EventType:   events[0].What,
 		TimestampNs: events[0].Timestamp,
 		FinishNs:    events[1].Timestamp,
 		FinishType:  TapEventFinishShortCircuit,
@@ -186,6 +187,7 @@ func TestISMLocalResponse(t *testing.T) {
 	}
 
 	expected := &InputEventResult{
+		EventType:   events[0].What,
 		TimestampNs: events[0].Timestamp,
 		FinishNs:    6300 * nsPerMs,
 		FinishType:  TapEventFinishTimeout,
@@ -301,6 +303,7 @@ func TestISMGlobalResponse(t *testing.T) {
 	}
 
 	expected := &InputEventResult{
+		EventType:   events[0].What,
 		TimestampNs: events[0].Timestamp,
 		FinishNs:    6000 * nsPerMs,
 		FinishType:  TapEventFinishTimeout,
@@ -471,6 +474,7 @@ func TestISMLocalGlobalResponse(t *testing.T) {
 	}
 
 	expected := &InputEventResult{
+		EventType:   events[0].What,
 		TimestampNs: events[0].Timestamp,
 		FinishNs:    11500 * nsPerMs,
 		FinishType:  TapEventFinishTimeout,

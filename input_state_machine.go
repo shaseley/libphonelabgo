@@ -32,7 +32,7 @@ func DefaultInputStateMachineParams() *InputStateMachineParams {
 		GlobalResponseRegions: 10,
 		UITimeoutMs:           3000,
 		Connectivity:          EightConnected,
-		UsePendingTimestamp:   true,
+		UsePendingTimestamp:   false,
 		SkipUndefinedResponse: true,
 	}
 }
@@ -43,6 +43,7 @@ const (
 	InputStateWaitResponse
 	InputStateMeasureLocal
 	InputStateMeasureGlobal
+	InputStateMeasureScroll
 )
 
 // InputStateMachine is the state machine we use to measure performance metrics
@@ -59,6 +60,7 @@ type InputStateMachine struct {
 	curEvent  *TouchScreenEvent
 
 	pendingResponseStartNs int64
+	scrollKeepaliveNs      int64
 }
 
 // Create a new InputStateMachine with the default parameters.
@@ -97,11 +99,15 @@ type InputEventResult struct {
 	GlobalResponse *ResponseDetail `json:"global_response"`
 	Jank           []*JankEvent    `json:"jank_events"`
 
+	EventType    int   `json:"event_type"`
+	ScrollStopNs int64 `json:"scroll_stop_ns"`
+
 	prevFrameTime int64
 }
 
 func NewInputEventResult(event *TouchScreenEvent) *InputEventResult {
 	return &InputEventResult{
+		EventType:      event.What,
 		TimestampNs:    event.Timestamp,
 		LocalResponse:  NewResponseDetail(),
 		GlobalResponse: NewResponseDetail(),
@@ -302,16 +308,21 @@ func (ism *InputStateMachine) OnTouchEvent(event *TouchScreenEvent) *InputEventR
 	// we're not at the start/wait state.
 	var cur *InputEventResult = nil
 
-	if ism.curState != InputStateWaitInput {
-		cur = ism.shortCircuit(event.Timestamp)
-	}
+	// New event staring
+	if event.What == TouchScreenEventTap || event.What == TouchScreenEventScrollStart {
+		if ism.curState != InputStateWaitInput {
+			cur = ism.shortCircuit(event.Timestamp)
+		}
+		// Clear state
+		ism.reset()
 
-	// Clear state
-	ism.reset()
-
-	// If it's a tap event, transition --> InputStateWaitResponse
-	if event.What == TouchScreenEventTap {
+		// If it's a tap or scroll event, transition --> InputStateWaitResponse
 		ism.startWaitingForResponse(event)
+	} else if event.What == TouchScreenEventScrollEnd && ism.curEvent != nil {
+		// No state transition though, we want to keep evaluating the output.
+		// TODO: Eventually, this might want to transition to a new scrolling
+		// non-active state.
+		ism.curResult.ScrollStopNs = event.Timestamp
 	}
 
 	return cur
@@ -381,7 +392,7 @@ func (ism *InputStateMachine) OnFrameDiff(diff *FrameDiffSample) *InputEventResu
 		ism.pendingResponseStartNs = InvalidResponseTime
 	}
 
-	// Jank check
+	// Jank check - applies to taps and scrolls, all states unless waiting for input.
 	if ism.curResult != nil && diff.PctDiff > ism.Params.JankFilterValue {
 		if ism.curResult.prevFrameTime > 0 {
 			delta := diff.Timestamp - ism.curResult.prevFrameTime
@@ -405,6 +416,8 @@ func (ism *InputStateMachine) OnFrameDiff(diff *FrameDiffSample) *InputEventResu
 			ns = ism.curResult.LocalResponse.EndNs
 		case InputStateMeasureGlobal:
 			ns = ism.curResult.GlobalResponse.EndNs
+		case InputStateMeasureScroll:
+			ns = ism.scrollKeepaliveNs
 		}
 
 		if ns > 0 && (diff.TimestampNs()-ns)/nsPerMs >= ism.Params.UITimeoutMs {
@@ -431,7 +444,10 @@ func (ism *InputStateMachine) OnFrameDiff(diff *FrameDiffSample) *InputEventResu
 		}
 	case InputStateWaitResponse:
 		{
-			if ism.Params.SkipUndefinedResponse && rt == responseTypeNeither {
+			if ism.curEvent.What == TouchScreenEventScrollStart {
+				// Transition to the
+				return nil
+			} else if ism.Params.SkipUndefinedResponse && rt == responseTypeNeither {
 				// No change
 				if ismDebug {
 					fmt.Println("Skipping non-local/non-global response while waiting")
@@ -483,6 +499,12 @@ func (ism *InputStateMachine) OnFrameDiff(diff *FrameDiffSample) *InputEventResu
 			// Even if the diff is only local, we had a global response and we
 			// don't flip-flop states.
 			ism.curResult.GlobalResponse.onFrameDiff(diff)
+		}
+	case InputStateMeasureScroll:
+		{
+			// All we need to do is update the keepalive for timeouts. The jank
+			// detection is already handled.
+			ism.scrollKeepaliveNs = diff.TimestampNs()
 		}
 	}
 
