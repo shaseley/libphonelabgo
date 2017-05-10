@@ -14,12 +14,14 @@ type InputStateMachineParams struct {
 	JankThresholdMs       int64
 	JankFilterValue       float64
 	LocalResponsePercent  float64
+	LocalResponseRegions  int
 	GlobalResponsePercent float64
 	GlobalResponseRegions int
 	UITimeoutMs           int64
 	Connectivity          PixelConnectivity
 	UsePendingTimestamp   bool
 	SkipUndefinedResponse bool
+	JankOnFrameUpdate     bool
 }
 
 // Create a new InputStateMachineParams with the default settings.
@@ -28,13 +30,88 @@ func DefaultInputStateMachineParams() *InputStateMachineParams {
 		JankThresholdMs:       70,
 		JankFilterValue:       0.1,
 		LocalResponsePercent:  60.0,
+		LocalResponseRegions:  0,
 		GlobalResponsePercent: 20.0,
 		GlobalResponseRegions: 10,
 		UITimeoutMs:           3000,
-		Connectivity:          EightConnected,
+		Connectivity:          FourConnected,
 		UsePendingTimestamp:   false,
 		SkipUndefinedResponse: true,
 	}
+}
+
+func NewInputStateMachineParams(kwargs map[string]interface{}) *InputStateMachineParams {
+	params := DefaultInputStateMachineParams()
+
+	if v, ok := kwargs["jank_threshold_ms"]; ok {
+		params.JankThresholdMs = int64(v.(int))
+	}
+
+	if v, ok := kwargs["jank_filter_value"]; ok {
+		switch t := v.(type) {
+		case int:
+			params.JankFilterValue = float64(t)
+		case float64:
+			params.JankFilterValue = t
+		}
+	}
+
+	if v, ok := kwargs["ui_timeout_ms"]; ok {
+		params.UITimeoutMs = int64(v.(int))
+	}
+
+	if v, ok := kwargs["connectivity"]; ok {
+		switch v.(string) {
+		case "one":
+			params.Connectivity = OneConnected
+		case "four":
+			params.Connectivity = FourConnected
+		case "eight":
+			params.Connectivity = EightConnected
+		}
+	}
+
+	if v, ok := kwargs["local_resp_pct"]; ok {
+		switch t := v.(type) {
+		case int:
+			params.LocalResponsePercent = float64(t)
+		case float64:
+			params.LocalResponsePercent = t
+		}
+	}
+
+	if v, ok := kwargs["global_resp_pct"]; ok {
+		switch t := v.(type) {
+		case int:
+			params.GlobalResponsePercent = float64(t)
+		case float64:
+			params.GlobalResponsePercent = t
+		}
+	}
+
+	if v, ok := kwargs["global_regions"]; ok {
+		params.GlobalResponseRegions = v.(int)
+	}
+
+	if v, ok := kwargs["local_regions"]; ok {
+		params.LocalResponseRegions = v.(int)
+	}
+
+	if v, ok := kwargs["use_pending_ts"]; ok {
+		params.UsePendingTimestamp = v.(bool)
+	}
+
+	if v, ok := kwargs["skip_undefined_resp"]; ok {
+		params.SkipUndefinedResponse = v.(bool)
+	}
+
+	if v, ok := kwargs["jank_on_frame_update"]; ok {
+		params.JankOnFrameUpdate = v.(bool)
+	}
+
+	fmt.Println("ISM Parameters:", *params)
+
+	return params
 }
 
 // InputStateMachine states
@@ -102,7 +179,7 @@ type InputEventResult struct {
 	EventType    int   `json:"event_type"`
 	ScrollStopNs int64 `json:"scroll_stop_ns"`
 
-	prevFrameTime int64
+	prevFrameTimeNs int64
 }
 
 func NewInputEventResult(event *TouchScreenEvent) *InputEventResult {
@@ -216,7 +293,7 @@ func (ism *InputStateMachine) shortCircuit(ts int64) *InputEventResult {
 	// Finish detail
 	ism.curResult.FinishType = TapEventFinishShortCircuit
 	ism.curResult.FinishNs = ts
-	ism.curResult.prevFrameTime = 0
+	ism.curResult.prevFrameTimeNs = 0
 
 	// TODO: Do we need to detect timeouts here?
 	// If the diffs interlace zeros, then probably not since we'll have
@@ -230,7 +307,7 @@ func (ism *InputStateMachine) handleTimeout(ts int64) *InputEventResult {
 	res := ism.curResult
 	res.FinishType = TapEventFinishTimeout
 	res.FinishNs = ts
-	res.prevFrameTime = 0
+	res.prevFrameTimeNs = 0
 
 	// --> InputStateWaitInput
 	ism.reset()
@@ -281,7 +358,8 @@ func (ism *InputStateMachine) getResponseType(diff *FrameDiffSample) responseTyp
 			fmt.Println("Local ratio:", ratio)
 		}
 
-		if ratio >= ism.Params.LocalResponsePercent {
+		if ratio >= ism.Params.LocalResponsePercent &&
+			(ism.Params.LocalResponseRegions == 0 || len(diff.GridEntries) <= ism.Params.LocalResponseRegions) {
 			return responseTypeLocal
 		}
 	} else if ismDebug {
@@ -299,14 +377,23 @@ func (ism *InputStateMachine) getResponseType(diff *FrameDiffSample) responseTyp
 // Update state and possibly return an event result
 func (ism *InputStateMachine) OnTouchEvent(event *TouchScreenEvent) *InputEventResult {
 
-	// Skip key events
-	if event.What == TouchScreenEventKey {
-		return nil
-	}
-
 	// For all other touch events, this short-circuits the current state if
 	// we're not at the start/wait state.
 	var cur *InputEventResult = nil
+
+	// Skip key events, except power
+	if event.What == TouchScreenEventKey {
+		if event.Code == KEYCODE_POWER {
+			// Hard key, we need this one.
+			// TODO: Should we just look at the screen on/off logs?
+			if ism.curState != InputStateWaitInput {
+				cur = ism.shortCircuit(event.Timestamp)
+			}
+			ism.reset()
+			return cur
+		}
+		return nil
+	}
 
 	// New event staring
 	if event.What == TouchScreenEventTap || event.What == TouchScreenEventScrollStart {
@@ -373,6 +460,21 @@ func (ism *InputStateMachine) startMeasuringRepsonse(response *ResponseDetail, d
 	response.EndNs = diff.TimestampNs()
 }
 
+func (ism *InputStateMachine) checkJank(timestampNs int64) {
+	if ism.curResult != nil {
+		if ism.curResult.prevFrameTimeNs > 0 {
+			delta := (timestampNs - ism.curResult.prevFrameTimeNs) / 1000000
+			if delta >= ism.Params.JankThresholdMs {
+				ism.curResult.Jank = append(ism.curResult.Jank, &JankEvent{
+					TimestampNs: timestampNs,
+					JankAmount:  delta,
+				})
+			}
+		}
+		ism.curResult.prevFrameTimeNs = timestampNs
+	}
+}
+
 // Update state and possibly return an event result.
 func (ism *InputStateMachine) OnFrameDiff(diff *FrameDiffSample) *InputEventResult {
 
@@ -393,17 +495,10 @@ func (ism *InputStateMachine) OnFrameDiff(diff *FrameDiffSample) *InputEventResu
 	}
 
 	// Jank check - applies to taps and scrolls, all states unless waiting for input.
-	if ism.curResult != nil && diff.PctDiff > ism.Params.JankFilterValue {
-		if ism.curResult.prevFrameTime > 0 {
-			delta := diff.Timestamp - ism.curResult.prevFrameTime
-			if delta >= ism.Params.JankThresholdMs {
-				ism.curResult.Jank = append(ism.curResult.Jank, &JankEvent{
-					TimestampNs: diff.TimestampNs(),
-					JankAmount:  delta,
-				})
-			}
-		}
-		ism.curResult.prevFrameTime = diff.Timestamp
+	if ism.curResult != nil && diff.PctDiff > ism.Params.JankFilterValue &&
+		!ism.Params.JankOnFrameUpdate {
+
+		ism.checkJank(diff.TimestampNs())
 	}
 
 	// Handle timeouts in one shot
@@ -435,7 +530,7 @@ func (ism *InputStateMachine) OnFrameDiff(diff *FrameDiffSample) *InputEventResu
 
 	// OK, we have a resonse of some sort and we're not in the start state.
 	// We'll either update the current response, or transition to a different
-	// starte.
+	// start.
 
 	switch ism.curState {
 	default:
@@ -515,8 +610,8 @@ func (ism *InputStateMachine) OnFrameRefresh(event *FrameRefreshEvent) *InputEve
 	// At this point, we'll only use this info to update the jankiness, so we'll always
 	// return nil.
 
-	// TODO: This whole function probably needs to be removed
-	if ignoreFrameTimes {
+	// It's an option where to do this.
+	if !ism.Params.JankOnFrameUpdate {
 		return nil
 	}
 
@@ -534,20 +629,16 @@ func (ism *InputStateMachine) OnFrameRefresh(event *FrameRefreshEvent) *InputEve
 			}
 		}
 		fallthrough
+	case InputStateMeasureScroll:
+		fallthrough
 	case InputStateMeasureLocal:
 		fallthrough
 	case InputStateMeasureGlobal:
 		{
-			if ism.curResult.prevFrameTime > 0 {
-				diff := (event.SysTimeNs - ism.curResult.prevFrameTime) / 1000000
-				if diff >= ism.Params.JankThresholdMs {
-					ism.curResult.Jank = append(ism.curResult.Jank, &JankEvent{
-						TimestampNs: event.SysTimeNs,
-						JankAmount:  diff,
-					})
-				}
+			// Jank check - applies to taps and scrolls, all states unless waiting for input.
+			if ism.curResult != nil {
+				ism.checkJank(event.SysTimeNs)
 			}
-			ism.curResult.prevFrameTime = event.SysTimeNs
 		}
 	}
 	return nil
@@ -565,6 +656,7 @@ func (ism *InputStateMachine) Finish(ts int64) *InputEventResult {
 
 type InputStateMachineProcessor struct {
 	Source phonelab.Processor
+	Args   map[string]interface{}
 }
 
 func (proc *InputStateMachineProcessor) Process() <-chan interface{} {
@@ -574,6 +666,11 @@ func (proc *InputStateMachineProcessor) Process() <-chan interface{} {
 
 	go func() {
 		ism := NewInputStateMachine()
+
+		if len(proc.Args) > 0 {
+			ism.Params = NewInputStateMachineParams(proc.Args)
+		}
+
 		var lastTs int64
 
 		for iLog := range inChan {
@@ -623,5 +720,6 @@ func GenerateISMProcessor(source *phonelab.PipelineSourceInstance,
 
 	return &InputStateMachineProcessor{
 		Source: source.Processor,
+		Args:   kwargs,
 	}
 }
