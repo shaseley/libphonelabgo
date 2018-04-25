@@ -38,6 +38,16 @@ source:
   type: files
   sources: ["./test/test.log"]
 
+sink:
+  name: main
+  args: &spinner_args
+    min: 0.001
+    max: 4.000
+    algo: voting
+    votesIn: 7
+    votesOut: 3
+    ignoreZeros: true
+
 processors:
   - name: diffstream
     generator: framediffs
@@ -61,16 +71,6 @@ processors:
     inputs:
       - name: detector
         args: *spinner_args
-
-sink:
-  name: main
-  args: &spinner_args
-    min: 0.001
-    max: 4.000
-    algo: voting
-    votesIn: 7
-    votesOut: 3
-    ignoreZeros: true
 `
 	env := phonelab.NewEnvironment()
 	AddParsers(env)
@@ -201,6 +201,16 @@ source:
   type: files
   sources: ["./test/test.log"]
 
+sink:
+  name: main
+  args: &sargs
+    min: 0.001
+    max: 4.000
+    algo: voting
+    votesIn: 7
+    votesOut: 3
+    ignoreZeros: true
+
 processors:
   - name: diffstream
     generator: diffs
@@ -223,16 +233,6 @@ processors:
     inputs:
       - name: detector
         args: *sargs
-
-sink:
-  name: main
-  args: &sargs
-    min: 0.001
-    max: 4.000
-    algo: voting
-    votesIn: 7
-    votesOut: 3
-    ignoreZeros: true
 `
 	conf, err := phonelab.RunnerConfFromString(confString)
 	require.Nil(err)

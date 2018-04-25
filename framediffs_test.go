@@ -146,6 +146,12 @@ func TestFrameDiffInterlaceZeros(t *testing.T) {
 source:
   type: files
   sources: ["./test/test.log"]
+
+sink:
+  name: main
+  args: &args
+    interlace: 40
+
 processors:
   - name: diffstream
     generator: diffs
@@ -161,11 +167,6 @@ processors:
     inputs:
       - name: diffstream
         args: *args
-
-sink:
-  name: main
-  args: &args
-    interlace: 40
 `
 
 	env := phonelab.NewEnvironment()
