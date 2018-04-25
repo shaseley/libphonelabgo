@@ -24,6 +24,7 @@ type InputDiffSample struct {
 	LocalDiff8 *LocalDiffSample `json:"local_diff8"`
 	GlobalDiff float64          `json:"global_diff"`
 	NumChanges int              `json:"num_changes"`
+	Inserted   bool             `json:"inserted"`
 }
 
 type InputDiffEvent struct {
@@ -161,6 +162,7 @@ func (proc *InputDiffProcessor) Process() <-chan interface{} {
 							LocalDiff8: diffs[2],
 							GlobalDiff: t.SFFrameDiff.PctDiff,
 							NumChanges: len(t.SFFrameDiff.GridEntries),
+							Inserted:   t.Inserted,
 						})
 
 					} else {

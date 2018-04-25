@@ -68,6 +68,7 @@ func (p *TimeSyncPreprocessor) Process() <-chan interface{} {
 				outChan <- iLog
 			}
 		}
+		close(outChan)
 	}()
 
 	return outChan
